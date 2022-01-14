@@ -84,6 +84,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "HdlcDeframer.h"
 #include "Tx.h"
 #include "Emphasis.h"
+#include "RefCountingPty.h"
 
 
 /****************************************************************************
@@ -251,6 +252,7 @@ LocalRxBase::~LocalRxBase(void)
   ob_afsk_deframer = 0;
   delete ib_afsk_deframer;
   ib_afsk_deframer = 0;
+  if (mute_pty != 0) mute_pty->destroy();
 } /* LocalRxBase::~LocalRxBase */
 
 
@@ -656,6 +658,19 @@ bool LocalRxBase::initialize(void)
 
   cfg().valueUpdated.connect(sigc::mem_fun(*this, &LocalRxBase::cfgUpdated));
 
+  string mute_rx_pty;
+  if (cfg().getValue(name(), "MUTE_RX_PTY", mute_rx_pty))
+  {
+    mute_pty = RefCountingPty::instance(mute_rx_pty);
+    if (mute_pty == 0)
+    {
+      cerr << "*** ERROR: Could not create control MUTE_RX_PTY in " << name() << endl;
+      return false;
+    }
+    mute_pty->dataReceived.connect(
+          sigc::mem_fun(*this, &LocalRxBase::ptydataReceived));
+  }
+  
   return true;
 
 } /* LocalRxBase:initialize */
@@ -663,10 +678,10 @@ bool LocalRxBase::initialize(void)
 
 void LocalRxBase::setMuteState(MuteState new_mute_state)
 {
-  //std::cout << "### LocalRxBase::setMuteState[" << name()
-  //          << "]: new_mute_state=" << new_mute_state
-  //          << " mute_state=" << mute_state
-  //          << std::endl;
+  std::cout << "### LocalRxBase::setMuteState[" << name()
+            << "]: new_mute_state=" << new_mute_state
+            << " mute_state=" << mute_state
+            << std::endl;
 
   while (mute_state != new_mute_state)
   {
@@ -884,7 +899,7 @@ void LocalRxBase::audioStreamStateChange(bool is_active, bool is_idle)
 
 void LocalRxBase::onSquelchOpen(bool is_open)
 {
-  if (mute_state == MUTE_ALL)
+  if (mute_state == MUTE_ALL || mute_rx)
   {
     return;
   }
@@ -1008,6 +1023,29 @@ void LocalRxBase::cfgUpdated(const std::string& section, const std::string& tag)
   }
 } /* LocalRxBase::cfgUpdated */
 
+
+void LocalRxBase::ptydataReceived(const void *buf, size_t count) 
+{
+  const char *ptr = reinterpret_cast<const char*>(buf);
+  for (size_t i=0; i<count; ++i)
+  {
+    const char &cmd = *ptr++;
+    switch (cmd)
+    {
+      case 'M': // The squelch is open
+        mute_rx = true;
+        setMuteState(MUTE_ALL);
+        cout << "+++ WARNING:" << name() << " Rx is muted until an 'U' has been "
+             << "received from the pty device defined in MUTE_RX_PTY" << endl;
+        break;
+      case 'U': // The squelch is closed
+        mute_rx = false;
+        setMuteState(MUTE_NONE);
+        cout << "+++ Rx is now unmuted." << endl;
+        break;
+    }
+  }
+} /* LocalRxBase::dataReceived */
 
 /*
  * This file has not been truncated

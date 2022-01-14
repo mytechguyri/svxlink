@@ -61,6 +61,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  ****************************************************************************/
 
 #include "Rx.h"
+#include "RefCountingPty.h"
 
 
 /****************************************************************************
@@ -282,6 +283,8 @@ class LocalRxBase : public Rx
     HdlcDeframer *              ib_afsk_deframer;
     bool                        audio_dev_keep_open;
     Async::AudioSplitter *      fullband_splitter;
+    RefCountingPty       *mute_pty;
+    bool                        mute_rx;
 
     int audioRead(float *samples, int count);
     void dtmfDigitActivated(char digit);
@@ -298,6 +301,7 @@ class LocalRxBase : public Rx
     void rxReadyStateChanged(void);
     void publishSquelchState(void);
     void cfgUpdated(const std::string& section, const std::string& tag);
+    void ptydataReceived(const void *buf, size_t count);
 
 };  /* class LocalRxBase */
 

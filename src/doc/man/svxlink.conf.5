@@ -1670,6 +1670,11 @@ be mFM;.
 It is possible to specify the same PTY for multiple functions (e.g. squelch,
 ptt etc) in both TX and RX configurations. This may be good if there is one
 script handling all functions.
+.TP
+.MUTE_RX_PTY
+For broadcasts it should be possible to mute a local rx to prevent the trans-
+mission from disturbances. Send a 'M' to the pty device to mute the local rx
+and an 'U' to reopen it.
 .
 .SS Ddr Receiver Section
 .

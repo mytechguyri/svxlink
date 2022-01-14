@@ -247,6 +247,7 @@ DTMF_SERIAL=/dev/ttyS0
 #OB_AFSK_ENABLE=0
 #OB_AFSK_VOICE_GAIN=6
 #IB_AFSK_ENABLE=0
+#MUTE_RX_PTY=/tmp/mute_rx_pty
 
 [WbRx1]
 #TYPE=RtlUsb
