@@ -181,26 +181,28 @@ bool ReflectorLogic::initialize(void)
 {
   cfg().getValue(name(), "VERBOSE", m_verbose);
 
-  if (!cfg().getValue(name(), "HOST", m_reflector_host))
+  if (!cfg().getValue(name(), "HOST", m_reflector_host) ||
+      m_reflector_host.empty())
   {
-    cerr << "*** ERROR: " << name() << "/HOST missing in configuration" << endl;
+    std::cerr << "*** ERROR: " << name()
+              << "/HOST missing in configuration or is empty" << std::endl;
     return false;
   }
 
   m_reflector_port = 5300;
   cfg().getValue(name(), "PORT", m_reflector_port);
 
-  if (!cfg().getValue(name(), "CALLSIGN", m_callsign))
+  if (!cfg().getValue(name(), "CALLSIGN", m_callsign) || m_callsign.empty())
   {
-    cerr << "*** ERROR: " << name() << "/CALLSIGN missing in configuration"
-         << endl;
+    std::cerr << "*** ERROR: " << name()
+              << "/CALLSIGN missing in configuration or is empty" << std::endl;
     return false;
   }
 
-  if (!cfg().getValue(name(), "AUTH_KEY", m_auth_key))
+  if (!cfg().getValue(name(), "AUTH_KEY", m_auth_key) || m_auth_key.empty())
   {
-    cerr << "*** ERROR: " << name() << "/AUTH_KEY missing in configuration"
-         << endl;
+    std::cerr << "*** ERROR: " << name()
+              << "/AUTH_KEY missing in configuration or is empty" << std::endl;
     return false;
   }
   if (m_auth_key == "Change this key now!")
@@ -211,10 +213,11 @@ bool ReflectorLogic::initialize(void)
   }
 
   string event_handler_str;
-  if (!cfg().getValue(name(), "EVENT_HANDLER", event_handler_str))
+  if (!cfg().getValue(name(), "EVENT_HANDLER", event_handler_str) ||
+      event_handler_str.empty())
   {
-    cerr << "*** ERROR: Config variable " << name()
-         << "/EVENT_HANDLER not set\n";
+    std::cerr << "*** ERROR: Config variable " << name()
+              << "/EVENT_HANDLER not set or empty" << std::endl;
     return false;
   }
 
@@ -559,7 +562,7 @@ void ReflectorLogic::remoteReceivedTgUpdated(LogicBase *logic, uint32_t tg)
 void ReflectorLogic::remoteReceivedPublishStateEvent(
     LogicBase *logic, const std::string& event_name, const std::string& data)
 {
-  //cout << "### ReflectorLogic::remoteReceivedPublishStateEvent:"
+  //cout << "###XX ReflectorLogic::remoteReceivedPublishStateEvent:"
   //     << " logic=" << logic->name()
   //     << " event_name=" << event_name
   //     << " data=" << data
@@ -670,6 +673,24 @@ void ReflectorLogic::remoteReceivedPublishStateEvent(
         msg.pushBack(tx);
       }
     }
+    sendMsg(msg);
+  }
+  else if (event_name == "QsoInfo:state")
+  {
+    std::istringstream is(data);
+    Json::Value user_info;
+    is >> user_info;
+    user_info["TG"] = m_selected_tg;
+    string ud =jsonToString(user_info);
+    
+     // cout << "sende: " << event_name << "," << ud << endl;
+    MsgStateEvent msg(logic->name(), event_name, ud);
+    sendMsg(msg);
+  }
+  else if (event_name == "Sds:info" || event_name == "TetraUsers:info")
+  {
+   // cout << "sende: " << event_name << "," << data << endl;
+    MsgStateEvent msg(logic->name(), event_name, data);
     sendMsg(msg);
   }
 } /* ReflectorLogic::remoteReceivedPublishStateEvent */
@@ -1789,6 +1810,15 @@ void ReflectorLogic::handlePlayDtmf(const std::string& digit, int amp,
   LinkManager::instance()->playDtmf(this, digit, amp, duration);
 } /* ReflectorLogic::handlePlayDtmf */
 
+
+string ReflectorLogic::jsonToString(Json::Value eventmessage)
+{
+  Json::FastWriter jsontoString;
+  std::string message = jsontoString.write(eventmessage);
+  message.erase(std::remove_if(message.begin(), message.end(), 
+                [](unsigned char x){return std::iscntrl(x);}));
+  return message;
+} /* ReflectorLogic::jsonToString */
 
 /*
  * This file has not been truncated

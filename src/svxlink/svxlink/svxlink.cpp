@@ -89,6 +89,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "SipLogic.h"
 #endif
 #include "LinkManager.h"
+#include "TetraLogic.h"
 
 
 
@@ -186,8 +187,8 @@ static string         	  tstamp_format;
  * Output:    Return 0 on success, else non-zero.
  * Author:    Tobias Blomberg, SM0SVX
  * Created:   2004-03-28
- * Remarks:   
- * Bugs:      
+ * Remarks:
+ * Bugs:
  *----------------------------------------------------------------------------
  */
 int main(int argc, char **argv)
@@ -263,16 +264,16 @@ int main(int argc, char **argv)
       exit(1);
     }
     close(devnull);
-    
+
       /* Force stdout to line buffered mode */
     if (setvbuf(stdout, NULL, _IOLBF, 0) != 0)
     {
       perror("setlinebuf");
       exit(1);
-    }    
+    }
 
     atexit(logfile_flush);
-    
+
       /* Tell the daemon function call not to close the file descriptors */
     noclose = 1;
   }
@@ -338,7 +339,7 @@ int main(int argc, char **argv)
   {
     home_dir = ".";
   }
-  
+
   tstamp_format = "%c";
 
   Config cfg;
@@ -384,7 +385,7 @@ int main(int argc, char **argv)
     }
   }
   string main_cfg_filename(cfg_filename);
-  
+
   string cfg_dir;
   if (cfg.getValue("GLOBAL", "CFG_DIR", cfg_dir))
   {
@@ -400,7 +401,7 @@ int main(int argc, char **argv)
       	cfg_dir = string("./") + cfg_dir;
       }
     }
-    
+
     DIR *dir = opendir(cfg_dir.c_str());
     if (dir == NULL)
     {
@@ -408,7 +409,7 @@ int main(int argc, char **argv)
       	   << "configuration variable GLOBAL/CFG_DIR=" << cfg_dir << endl;
       exit(1);
     }
-    
+
     struct dirent *dirent;
     while ((dirent = readdir(dir)) != NULL)
     {
@@ -426,7 +427,7 @@ int main(int argc, char **argv)
 	 exit(1);
        }
     }
-    
+
     if (closedir(dir) == -1)
     {
       cerr << "*** ERROR: Error closing directory specified by"
@@ -434,9 +435,9 @@ int main(int argc, char **argv)
       exit(1);
     }
   }
-  
+
   cfg.getValue("GLOBAL", "TIMESTAMP_FORMAT", tstamp_format);
-  
+
   cout << PROGRAM_NAME " v" SVXLINK_VERSION
           " Copyright (C) 2003-2020 Tobias Blomberg / SM0SVX\n\n";
   cout << PROGRAM_NAME " comes with ABSOLUTELY NO WARRANTY. "
@@ -446,7 +447,7 @@ int main(int argc, char **argv)
   cout << "GNU GPL (General Public License) version 2 or later.\n";
 
   cout << "\nUsing configuration file: " << main_cfg_filename << endl;
-  
+
   string value;
   if (cfg.getValue("GLOBAL", "CARD_SAMPLE_RATE", value))
   {
@@ -536,7 +537,7 @@ int main(int argc, char **argv)
   LocationInfo::deleteInstance();
 
   logfile_flush();
-  
+
   if (stdin_watch != 0)
   {
     delete stdin_watch;
@@ -556,14 +557,14 @@ int main(int argc, char **argv)
     delete *lit;
   }
   logic_vec.clear();
-  
+
   if (logfd != -1)
   {
     close(logfd);
   }
-  
+
   return 0;
-  
+
 } /* main */
 
 
@@ -584,8 +585,8 @@ int main(int argc, char **argv)
  * Output:    Returns 0 if all is ok, otherwise -1.
  * Author:    Tobias Blomberg, SM0SVX
  * Created:   2000-06-13
- * Remarks:   
- * Bugs:      
+ * Remarks:
+ * Bugs:
  *----------------------------------------------------------------------------
  */
 static void parse_arguments(int argc, const char **argv)
@@ -613,10 +614,10 @@ static void parse_arguments(int argc, const char **argv)
   int err;
   //const char *arg = NULL;
   //int argcnt = 0;
-  
+
   optCon = poptGetContext(PROGRAM_NAME, argc, argv, optionsTable, 0);
   poptReadDefaultConfig(optCon, 0);
-  
+
   err = poptGetNextOpt(optCon);
   if (err != -1)
   {
@@ -631,7 +632,7 @@ static void parse_arguments(int argc, const char **argv)
   printf("int_arg     = %d\n", int_arg);
   printf("bool_arg    = %d\n", bool_arg);
   */
-  
+
     /* Parse arguments that do not begin with '-' (leftovers) */
   /*
   arg = poptGetArg(optCon);
@@ -664,17 +665,17 @@ static void stdinHandler(FdWatch *w)
     stdin_watch = 0;
     return;
   }
-  
+
   switch (toupper(buf[0]))
   {
     case 'Q':
       Application::app().quit();
       break;
-    
+
     case '\n':
       putchar('\n');
       break;
-    
+
     case '0': case '1': case '2': case '3':
     case '4': case '5': case '6': case '7':
     case '8': case '9': case 'A': case 'B':
@@ -735,9 +736,9 @@ static void initialize_logics(Config &cfg)
       logic_name = string(begin, comma);
       begin = comma + 1;
     }
-    
+
     cout << "\nStarting logic: " << logic_name << endl;
-    
+
     string logic_type;
     if (!cfg.getValue(logic_name, "TYPE", logic_type) || logic_type.empty())
     {
@@ -764,6 +765,10 @@ static void initialize_logics(Config &cfg)
       logic = new SipLogic(cfg, logic_name);
     }
 #endif
+    else if (logic_type == "Tetra")
+    {
+      logic = new TetraLogic(cfg, logic_name);
+    }
     else if (logic_type == "Dummy")
     {
       logic = new DummyLogic(cfg, logic_name);
@@ -781,10 +786,10 @@ static void initialize_logics(Config &cfg)
       delete logic;
       continue;
     }
-    
+
     logic_vec.push_back(logic);
   } while (comma != logics.end());
-  
+
   if (logic_vec.size() == 0)
   {
     cerr << "*** ERROR: No logics available. Bailing out...\n";
@@ -848,7 +853,7 @@ static bool logfile_open(void)
   {
     close(logfd);
   }
-  
+
   logfd = open(logfile_name, O_WRONLY | O_APPEND | O_CREAT, 00644);
   if (logfd == -1)
   {
@@ -857,7 +862,7 @@ static bool logfile_open(void)
   }
 
   return true;
-  
+
 } /* logfile_open */
 
 
@@ -918,13 +923,13 @@ static void logfile_write(const char *buf)
     cout << buf;
     return;
   }
-  
+
   const char *ptr = buf;
   while (*ptr != 0)
   {
     static bool print_timestamp = true;
     ssize_t ret;
-    
+
     if (print_timestamp)
     {
       if (!logfile_write_timestamp())

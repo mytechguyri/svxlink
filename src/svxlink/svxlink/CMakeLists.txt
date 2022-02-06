@@ -71,7 +71,8 @@ set(LIBS trx locationinfo asynccpp asyncaudio asynccore svxmisc ${LIBS})
 add_executable(svxlink
   MsgHandler.cpp Module.cpp Logic.cpp SimplexLogic.cpp RepeaterLogic.cpp
   EventHandler.cpp LinkManager.cpp CmdParser.cpp QsoRecorder.cpp svxlink.cpp
-  DtmfDigitHandler.cpp ReflectorLogic.cpp SipLogic.cpp
+  DtmfDigitHandler.cpp ReflectorLogic.cpp SipLogic.cpp TetraLogic.cpp 
+  DapNetClient.cpp
   ${VERSION_DEPENDS}
 )
 target_link_libraries(svxlink ${LIBS} ${PJSIP_LIBRARIES})
@@ -105,10 +106,14 @@ install_if_not_exists(${CMAKE_CURRENT_BINARY_DIR}/svxlink.conf
 install_if_not_exists(${CMAKE_CURRENT_BINARY_DIR}/gpio.conf
   ${SVX_SYSCONF_INSTALL_DIR}
   )
+install_if_not_exists(${CMAKE_CURRENT_SOURCE_DIR}/tetra_users.json
+  ${SVX_SYSCONF_INSTALL_DIR}
+  )
 install_if_not_exists(node_info.json ${SVX_SYSCONF_INSTALL_DIR})
+install_if_not_exists(tetra_users.json ${SVX_SYSCONF_INSTALL_DIR})
 install(FILES events.tcl DESTINATION ${SVX_SHARE_INSTALL_DIR})
 install(FILES RepeaterLogic.tcl SimplexLogic.tcl ReflectorLogic.tcl Module.tcl
-  Logic.tcl CW.tcl SelCall.tcl locale.tcl SipLogic.tcl
+  Logic.tcl CW.tcl SelCall.tcl SipLogic.tcl TetraLogic.tcl locale.tcl
   DESTINATION ${SVX_SHARE_INSTALL_DIR}/events.d
   )
 install(PROGRAMS ${RUNTIME_OUTPUT_DIRECTORY}/svxlink_gpio_up
