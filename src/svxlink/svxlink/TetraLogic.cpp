@@ -128,7 +128,7 @@ using namespace SvxLink;
 #define LOGINFO 2
 #define LOGDEBUG 3
 
-#define TETRA_LOGIC_VERSION "25012022"
+#define TETRA_LOGIC_VERSION "14022022"
 
 /****************************************************************************
  *
@@ -657,10 +657,10 @@ bool TetraLogic::initialize(void)
    // receive interlogic messages
   publishStateEvent.connect(
           mem_fun(*this, &TetraLogic::onPublishStateEvent));
-  
+
   peirequest = AT_CMD_WAIT;
   initPei();
-  
+
   rxValveSetOpen(true);
   setTxCtrlMode(Tx::TX_AUTO);
 
@@ -742,7 +742,7 @@ void TetraLogic::transmitterStateChange(bool is_transmitting)
     cmd += std::to_string(current_cci);
     sendPei(cmd);
   }
-  
+
   if (mute_rx_on_tx)
   {
    // rx().setMuteState(is_transmitting ? Rx::MUTE_ALL : Rx::MUTE_NONE);
@@ -810,7 +810,7 @@ void TetraLogic::initPei(void)
 {
   stringstream ss;
   std::string cmd;
-  
+
   if (peirequest == AT_CMD_WAIT)
   {
     peiBreakCommandTimer.reset();
@@ -941,7 +941,7 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
     case TEXT_SDS:
       handleSdsMsg(m_message);
       break;
-      
+
     case SIMPLE_TEXT_SDS:
     case STATE_SDS:
       handleSdsMsg(m_message);
@@ -958,7 +958,7 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
       // sds state send be MS
       handleCmgs(m_message);
       break;
-      
+
     case TX_DEMAND:
       break;
 
@@ -977,11 +977,11 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
     case CTGS:
       handleCtgs(m_message);
       break;
-      
+
     case CTDGR:
       cout << handleCtdgr(m_message);
       break;
-      
+
     case CLVL:
       handleClvl(m_message);
       break;
@@ -1039,7 +1039,7 @@ void TetraLogic::handleCallBegin(std::string message)
 {
   //                   +CTICN:   1,    0,    0,    4,    1002,       1,     1,     0,   1,    1,   0,    1000,       1
   std::string reg = "\\+CTICN: [0-9],[0-9],[0-9],[0-9],[0-9]{1,17},[0-9],[0-9],[0-9],[0-9],[0-9],[0-9],[0-9]{1,17},[0-9]";
-  
+
   if (!rmatch(message, reg))
   {
     if (debug >= LOGWARN)
@@ -1529,7 +1529,7 @@ std::string TetraLogic::handleSimpleTextSds(std::string m_message)
 */
 void TetraLogic::handleTxGrant(std::string txgrant)
 {
-  if (!is_tx)
+  if (!is_tx && peistate==OK)
   {
     squelchOpen(true);
   }
@@ -1781,10 +1781,10 @@ void TetraLogic::handleCnumf(std::string m_message)
     m_message.erase(0,8);
   }
   // e.g. +CNUMF: 6,09011638300023401
-  
+
   int t_mnc, t_mcc, t_issi;
   short m_numtype = getNextVal(m_message);
-  
+
   if (debug >= LOGINFO) cout << "<num type> is " << m_numtype << " (" 
                << NumType[m_numtype] << ")" << endl; 
 
@@ -1792,7 +1792,7 @@ void TetraLogic::handleCnumf(std::string m_message)
   {
     // get the tsi and split it into mcc,mnc,issi
     splitTsi(m_message, t_mcc, t_mnc, t_issi);
-    
+
     // check if the configured MCC fits to MCC in MS
     if (t_mcc != atoi(mcc.c_str()))
     {
@@ -1824,7 +1824,7 @@ void TetraLogic::handleCnumf(std::string m_message)
       }
     }
   }
-  
+
   peirequest = INIT_COMPLETE;
 } /* TetraLogic::handleCnumf */
 
