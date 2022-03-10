@@ -62,7 +62,7 @@ useradd -g svxlink -G svxlink -c "SvxLink Admin" svxlin
 # the newer ones you will get a linker error, is on my todo-list.
 
 wget https://github.com/pjsip/pjproject/archive/2.10.tar.gz
-tar -xcvf 2.10
+tar -xzvf 2.10.tar.gz
 cd 2.10
 ./configure --disable-webrtc --disable-video
 make dep
