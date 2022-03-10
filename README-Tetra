@@ -1,7 +1,11 @@
+*********************************************************************************************************
+* Instructions for the branch tetra-sip
 *
-* Adi Bier / DL1HRC
-* dl1hrc { at } gmx . de
+* Provides: Tetra-MTM5400 <-> Tetra-Logic <-> SvxLink <-> SipLogic <-> [FRITZ!Box||Asterisk]
+*                                |
+*                                ----> SvxReflector
 *
+*********************************************************************************************************
 
 This branch only works if you have the following things:
 
@@ -11,22 +15,27 @@ This branch only works if you have the following things:
 
 The MS is completely controlled by AT-commands over the PEI interface
 
-Installation instructions from Frédéric/F1IWQ can be found here:
+Installation instructions for the tetra-contrib branch from Frédéric/F1IWQ 
+can be found here:
 https://raw.githubusercontent.com/f1iwq2/Tetra_Link_boardIWQ/main/Doc/Download%20svxlink-tetra.pdf
+
+A German pdf with install instructions and a more detailed description of the 
+different branches is available here:
+http://svxlink.ham-radio-op.net/svxlink/SvxLink-Contributions.pdf
 
 Here are two quick-and-dirty installation/update documentation, keep 
 in mind: No configuration will be done!
 
-1) first time installation (including German(!) voice announcements):
+1.1) first time installation (including German(!) voice announcements):
 
 You may use my semi-automatic installation-script from here 
-http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-contrib.sh
+http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-sip.sh
 
 Start installation as root:
-wget -O - http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-contrib.sh | bash
+wget -O - http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-sip.sh | bash
 
 
-2) Update an existing tetra-contrib installation made by the previous script 
+1.2) Update an existing tetra-sip installation made by the previous script 
 as root:
 
 systemctl stop svxlink
@@ -35,3 +44,51 @@ git pull
 make install
 systemctl start svxlink
 
+----------------------------------------------------------------------------------
+
+2) Or installation by hand
+
+sudo apt update
+
+sudo apt install gcc g++ wget make cmake libgcrypt-dev libgsm1-dev libsigc++-\
+2.0-dev tcl-dev git libspeex-dev libasound2-dev libpopt-dev libssl-dev libopus-\
+dev groff libcurl4-openssl-dev libjsoncpp-dev gpiod libgpiod-dev libusb-1.0.0-dev \
+alsa-base alsa-utils
+
+groupadd svxlink
+useradd -g svxlink -G svxlink -c "SvxLink Admin" svxlin
+
+# Install the pjSip framework in version 2.10. Please use this version only, with
+# the newer ones you will get a linker error, is on my todo-list.
+
+wget https://github.com/pjsip/pjproject/archive/2.10.tar.gz
+tar -xcvf 2.10
+cd 2.10
+./configure --disable-webrtc --disable-video
+make dep
+make
+sudo make install
+
+# Clone the svxlink branch tetra-sip
+git clone http://github.com/dl1hrc/svxlink.git
+cd svxlink
+git checkout tetra-sip
+cd svxlink/src
+mkdir build
+cd build
+cmake -DUSE_QT=OFF -DCMAKE_INSTALL_PREFIX=/usr -DSYSCONF_INSTALL_DIR=/etc -\
+DLOCAL_STATE_DIR=/var -DCMAKE_BUILD_TYPE=Release ..
+make
+sudo make install
+sudo ldconfig
+
+The basic installation should be done now sucessfully. Continue with the installation
+of sounds and the configuration of the parameters in svxlink.conf. You should try
+to connect your MTMxxxx by using the minicom to see that the communication between
+Raspi/pc and MTM is ok. It makes no sense to continue if you can't connect the
+MTM or it doesn't present valid AT answers.
+
+Please report problems over the groups.io mailing list. tnks
+
+Mni Adi Bier / DL1HRC
+dl1hrc { at } gmx . de
