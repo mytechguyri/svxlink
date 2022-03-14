@@ -309,6 +309,20 @@ proc call_state_confirmed {caller} {
 proc unknown_callstate {caller} {
 }
 
+
+#
+# do not use!
+#
+proc pjsip_state_early {caller} {
+}
+
+
+#
+# do not use!
+#
+proc pjsip_state_null {caller} {
+}
+
 # end of namespace
 }
 
