@@ -26,11 +26,21 @@ proc dtmf_cmd_received {cmd} {
 
   if {[string length $cmd] > 5} {
     puts "### dialing number $cmd via sip pty";
-    # adapt the port according to your needs: 
-    # "/tmp/ctrl" must be equal to SIP_CTRL_PTY in [SipLogic]-section
+    # adjust the variable port according to your specifications
+    # "/tmp/ctrl" must be match to SIP_CTRL_PTY in [SipLogic]-section
     set port [open "/tmp/sipctrl" w+];
       set number "C$cmd";
       puts $port $number;
+    close $port;
+  }
+
+  # if a call isn't aswered you can stop the call by sending an other ssd, eg
+  # [SdsToCommand]
+  # 32771=0#
+  # the next section will end the pending call
+  if {$cmd == "0"} {
+    set port [open "/tmp/sipctrl" w+];
+      set number "C#";
     close $port;
   }
   return 0;
