@@ -36,11 +36,12 @@ proc dtmf_cmd_received {cmd} {
 
   # if a call isn't aswered you can stop the call by sending an other ssd, eg
   # [SdsToCommand]
-  # 32771=0#
+  # 32771=12
   # the next section will end the pending call
-  if {$cmd == "0"} {
+  if {$cmd == "12"} {
     set port [open "/tmp/sipctrl" w+];
       set number "C#";
+      puts $port $number;
     close $port;
   }
   return 0;
