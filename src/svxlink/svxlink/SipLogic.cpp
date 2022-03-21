@@ -88,7 +88,7 @@ using namespace pj;
  *
  ****************************************************************************/
 #define DEFAULT_SIPLIMITER_THRESH  -1.0
-#define PJSIP_VERSION "14032022"
+#define PJSIP_VERSION "21032022"
 
 
 /****************************************************************************
@@ -374,12 +374,12 @@ bool SipLogic::initialize(void)
   }
 
   cfg().getValue(name(), "SIPPORT", m_sip_port); // SIP udp-port default: 5060
-  
+
   std::string m_sipregistrar;
   cfg().getValue(name(), "SIPREGISTRAR", m_sipregistrar);
   std::string t_sreg = ":";
   t_sreg += to_string(m_sip_port);
-  
+
   if (m_sip_port != 5060 && (m_sipregistrar.find(t_sreg) == std::string::npos))
   {
     cout << "+++ WARNING: The SIPPORT is not the default (5060), so the param "
@@ -700,6 +700,8 @@ bool SipLogic::initialize(void)
   event_handler = new EventHandler(event_handler_str, name());
   event_handler->setVariable("is_core_event_handler", "1");
   event_handler->setVariable("logic_name", name().c_str());
+  event_handler->setVariable("sip_ctrl_pty", dtmf_ctrl_pty_path);
+
   event_handler->playFile.connect(mem_fun(*this, &SipLogic::playFile));
   event_handler->playSilence.connect(mem_fun(*this, &SipLogic::playSilence));
   event_handler->playTone.connect(mem_fun(*this, &SipLogic::playTone));
@@ -713,7 +715,7 @@ bool SipLogic::initialize(void)
          << endl;
     return false;
   }
-  
+
   /*************** outgoing to sip ********************/
 
    // handler for audio stream from logic to sip

@@ -24,7 +24,7 @@ proc dtmf_cmd_received {cmd} {
   variable port;
   variable number;
 
-  if {[string length $cmd] > 5} {
+  if {[string length $cmd] > 5 && [string range $cmd 0 1] != 91} {
     puts "### dialing number $cmd via sip pty";
     # adjust the variable port according to your specifications
     # "/tmp/ctrl" must be match to SIP_CTRL_PTY in [SipLogic]-section
@@ -49,7 +49,6 @@ proc dtmf_cmd_received {cmd} {
 
 # end of namespace
 }
-
 
 #
 # This file has not been truncated
