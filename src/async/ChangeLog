@@ -1,4 +1,4 @@
- 1.6.1 -- ?? ??? 2020
+ 1.7.0 -- ?? ??? 2022
 ----------------------
 
 * ASYNC_AUDIO_ALSA_ZEROFILL is now enabled by default.
@@ -36,6 +36,28 @@
 
 * Templated function Async::Config::setValue() so that generic types can be
   used without converting them to string first.
+
+* The Async::Serial class now support all extended baudrates.
+
+* Rewritten the DNS resolver with support for more resource record types.
+
+* AudioDeviceUDP can now write zeros to the UDP connection on underflow. That
+  is, when the "audio device" is open but there is no audio to write zeros
+  will be written instead. Enable this behavior by setting the environment
+  variable ASYNC_AUDIO_UDP_ZEROFILL=1.
+
+* The Config class now also accept associative containers for getValue. This
+  for example make it possible to use a std::map<float,float> to read a
+  configuration variable with a list of values on the form
+  VARNAME=88.5:-1,136.5:1. It is also possible to use other key/value
+  separators.
+
+* New class Async::StateMachine used to build Hierarchial Finate State
+  Machines.
+
+* New class Async::TcpPrioClient for handling pools of servers to connect to.
+  The pool members can be specified using DNS SRV records or locally using the
+  HOSTS configuration variable.
 
 
 

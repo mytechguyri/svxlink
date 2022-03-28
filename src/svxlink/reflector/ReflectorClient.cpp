@@ -418,7 +418,7 @@ void ReflectorClient::handleMsgAuthResponse(std::istream& is)
   }
 
   string auth_key = lookupUserKey(msg.callsign());
-  if (msg.verify(auth_key, m_auth_challenge))
+  if (!auth_key.empty() && msg.verify(auth_key, m_auth_challenge))
   {
     vector<string> connected_nodes;
     m_reflector->nodeList(connected_nodes);
@@ -509,6 +509,8 @@ void ReflectorClient::handleSelectTG(std::istream& is)
       // FIXME: Notify the client that the TG selection was not allowed
       std::cout << m_callsign << ": Not allowed to use TG #"
                 << msg.tg() << std::endl;
+      TGHandler::instance()->switchTo(this, 0);
+      m_current_tg = 0;
     }
   }
 } /* ReflectorClient::handleSelectTG */
@@ -524,15 +526,18 @@ void ReflectorClient::handleTgMonitor(std::istream& is)
     sendError("Illegal MsgTgMonitor protocol message received");
     return;
   }
-  std::set<uint32_t> tgs = msg.tgs();
-  for (auto it=tgs.begin(); it!=tgs.end(); ++it)
+  auto tgs = msg.tgs();
+  auto it = tgs.cbegin();
+  while (it != tgs.end())
   {
     if (!TGHandler::instance()->allowTgSelection(this, *it))
     {
       std::cout << m_callsign << ": Not allowed to monitor TG #"
                 << *it << std::endl;
-      tgs.erase(it);
+      tgs.erase(it++);
+      continue;
     }
+    ++it;
   }
   cout << m_callsign << ": Monitor TG#: [ ";
   std::copy(tgs.begin(), tgs.end(), std::ostream_iterator<uint32_t>(cout, " "));

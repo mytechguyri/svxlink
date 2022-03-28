@@ -9,7 +9,7 @@ to a remote host. See usage instructions in the class definition.
 
 \verbatim
 Async - A library for programming event driven applications
-Copyright (C) 2003-2017 Tobias Blomberg
+Copyright (C) 2003-2022 Tobias Blomberg
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -182,7 +182,7 @@ class TcpClient : public ConT, public TcpClientBase
      * @brief 	Destructor
      */
     ~TcpClient(void) {}
-    
+
     /**
      * @brief 	Disconnect from the remote host
      *
@@ -190,12 +190,8 @@ class TcpClient : public ConT, public TcpClientBase
      * disconnected, nothing will be done. The disconnected signal is not
      * emitted when this function is called
      */
-    virtual void disconnect(void)
-    {
-      ConT::disconnect();
-      TcpClientBase::disconnect();
-    }
-    
+    virtual void disconnect(void) { closeConnection(); }
+
     /**
      * @brief   Check if the connection is idle
      * @return  Returns \em true if the connection is idle
@@ -208,7 +204,18 @@ class TcpClient : public ConT, public TcpClientBase
     }
 
   protected:
-    
+    /**
+     * @brief   Disconnect from the remote peer
+     *
+     * This function is used internally to close the connection to the remote
+     * peer.
+     */
+    virtual void closeConnection(void)
+    {
+      ConT::closeConnection();
+      TcpClientBase::closeConnection();
+    }
+
   private:
 
 };  /* class TcpClient */
