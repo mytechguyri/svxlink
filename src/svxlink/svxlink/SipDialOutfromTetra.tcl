@@ -23,8 +23,9 @@ namespace eval TetraLogic {
 proc dtmf_cmd_received {cmd} {
   variable port;
   variable number;
+  global active_module;
 
-  if {[string length $cmd] > 5 && [string range $cmd 0 1] != 91} {
+  if {[string length $cmd] > 5 && [string range $cmd 0 1] != 91 && $active_module == ""} {
     puts "### dialing number $cmd via sip pty";
     # adjust the variable port according to your specifications
     # "/tmp/ctrl" must be match to SIP_CTRL_PTY in [SipLogic]-section
