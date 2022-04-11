@@ -88,7 +88,7 @@ using namespace pj;
  *
  ****************************************************************************/
 #define DEFAULT_SIPLIMITER_THRESH  -1.0
-#define PJSIP_VERSION "21032022"
+#define PJSIP_VERSION "10042022"
 
 
 /****************************************************************************
@@ -120,6 +120,11 @@ namespace sip {
         onCall(this, prm);
       }
 
+      virtual void onInstantMessage(pj::OnInstantMessageParam &prm)
+      {
+        onMessage(this, prm);
+      }
+
       /**
        * This structure contains parameters for Call::onDtmfDigit() callback.
          string pj::OnDtmfDigitParam::digit
@@ -136,6 +141,11 @@ namespace sip {
        * This structure contains parameters for Call::onCallState() callback.
        **/
       sigc::signal<void, sip::_Call*, pj::OnCallStateParam&> onCall;
+
+      /**
+       * This structure contains parameters for Call::onMessage() callback
+       **/
+       sigc::signal<void, sip::_Call*, pj::OnInstantMessageParam&> onMessage;
 
     private:
       pj::Account &account;
@@ -277,7 +287,7 @@ SipLogic::SipLogic(Async::Config& cfg, const std::string& name)
     accept_outgoing_regex(0), reject_outgoing_regex(0),
     msg_handler(0), event_handler(0), report_events_as_idle(false),
     startup_finished(false), selector(0), semi_duplex(false),
-    sip_preamp_gain(0)
+    sip_preamp_gain(0), m_autoconnect("")
 {
   m_call_timeout_timer.expired.connect(
       mem_fun(*this, &SipLogic::callTimeout));
@@ -374,12 +384,12 @@ bool SipLogic::initialize(void)
   }
 
   cfg().getValue(name(), "SIPPORT", m_sip_port); // SIP udp-port default: 5060
-
+  
   std::string m_sipregistrar;
   cfg().getValue(name(), "SIPREGISTRAR", m_sipregistrar);
   std::string t_sreg = ":";
   t_sreg += to_string(m_sip_port);
-
+  
   if (m_sip_port != 5060 && (m_sipregistrar.find(t_sreg) == std::string::npos))
   {
     cout << "+++ WARNING: The SIPPORT is not the default (5060), so the param "
@@ -408,7 +418,6 @@ bool SipLogic::initialize(void)
 
   cfg().getValue(name(), "SEMI_DUPLEX", semi_duplex); // only for RepeaterLogics
 
-  std::string  m_autoconnect = "";
   if (cfg().getValue(name(), "AUTOCONNECT", m_autoconnect)) // auto connect a number
   {
     size_t pos = m_autoconnect.find("sip:");
@@ -715,7 +724,7 @@ bool SipLogic::initialize(void)
          << endl;
     return false;
   }
-
+  
   /*************** outgoing to sip ********************/
 
    // handler for audio stream from logic to sip
@@ -853,6 +862,7 @@ void SipLogic::registerCall(sip::_Call *call)
   call->onDtmf.connect(mem_fun(*this, &SipLogic::onDtmfDigit));
   call->onMedia.connect(mem_fun(*this, &SipLogic::onMediaState));
   call->onCall.connect(mem_fun(*this, &SipLogic::onCallState));
+  call->onMessage.connect(mem_fun(*this, &SipLogic::onMessageInfo));
 } /* SipLogic::registerCall */
 
 
@@ -1007,6 +1017,12 @@ void SipLogic::onCallState(sip::_Call *call, pj::OnCallStateParam &prm)
     ss << "hangup_call " << caller << " "
        << ci.totalDuration.sec << "."
        << ci.totalDuration.msec;
+
+    // if no one is connected anymore, call out to autoconnect party
+    if (calls.empty() && m_autoconnect.length() > 0)
+    {
+      makeCall(acc, m_autoconnect);
+    }
   }
   else if (ci.state == PJSIP_INV_STATE_EARLY)
   {
@@ -1022,6 +1038,18 @@ void SipLogic::onCallState(sip::_Call *call, pj::OnCallStateParam &prm)
   }
   processEvent(ss.str());
 } /* SipLogic::onCallState */
+
+
+void SipLogic::onMessageInfo(sip::_Call *call, pj::OnInstantMessageParam &prm)
+{
+  std::string body = prm.msgBody;
+  SipRxData message = prm.rdata;
+  std::string contactUri = prm.contactUri;
+  stringstream ss;
+  ss << "text_message_received " << message.wholeMsg;
+  processEvent(ss.str());
+  // ToDO
+} /* SipLogic::onMessageInfo */
 
 
 void SipLogic::onDtmfDigit(sip::_Call *call, pj::OnDtmfDigitParam &prm)
