@@ -49,6 +49,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include <AsyncConfig.h>
 #include <EchoLinkStationData.h>
+#include <AsyncSerial.h>
 
 
 /****************************************************************************
@@ -208,9 +209,10 @@ class LocationInfo
 
   private:
     static LocationInfo* _instance;
-    LocationInfo() : sequence(0), aprs_stats_timer(0), sinterval(0) {}
+    LocationInfo() : sequence(0), aprs_stats_timer(0), sinterval(0), nmeadev(0),
+                     stored_lat(0), stored_lon(0) {}
     LocationInfo(const LocationInfo&);
-    ~LocationInfo(void) { delete aprs_stats_timer; };
+    ~LocationInfo(void) { delete aprs_stats_timer; delete nmeadev; };
 
     typedef std::list<AprsClient*> ClientList;
 
@@ -219,6 +221,10 @@ class LocationInfo
     int         sequence;
     Async::Timer *aprs_stats_timer;
     unsigned int sinterval;
+    std::string nmeastream;
+    Async::Serial *nmeadev;
+    float stored_lat;
+    float stored_lon;
 
     bool parsePosition(const Async::Config &cfg, const std::string &name);
     bool parseLatitude(Coordinate &pos, const std::string &value);
@@ -234,6 +240,12 @@ class LocationInfo
     void sendAprsStatistics(Async::Timer *t);
     void initExtPty(std::string ptydevice);
     void mesReceived(std::string message);
+    void onNmeaReceived(char *buf, int count);
+    void handleNmea(std::string message);
+    std::string getNextStr(std::string& h);
+    float calcDistance(float lat1, float lon1, float lat2, float lon2);
+    bool initNmeaDev(const Async::Config &cfg, const std::string &name);
+    bool rmatch(std::string tok, std::string pattern);
 
 };  /* class LocationInfo */
 

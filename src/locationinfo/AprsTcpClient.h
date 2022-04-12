@@ -125,7 +125,7 @@ class AprsTcpClient : public AprsClient, public sigc::trackable
        const std::string& info, std::list<std::string>& call_list);
       void update3rdState(const std::string& call, const std::string& info);
      void igateMessage(const std::string& info);
-
+    void sendBeacon(void);
 
   private:
     typedef std::vector<std::string> StrList;
@@ -158,6 +158,7 @@ class AprsTcpClient : public AprsClient, public sigc::trackable
                           Async::TcpClient<>::DisconnectReason reason);
     void  reconnectAprsServer(Async::Timer *t);
     void  startNormalSequence(Async::Timer *t);
+    void  sendABeacon(void);
 
 };  /* class AprsTcpClient */
 

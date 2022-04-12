@@ -222,6 +222,12 @@ void AprsTcpClient::igateMessage(const string& info)
 } /* AprsTcpClient::igateMessage */
 
 
+void AprsTcpClient::sendBeacon(void)
+{
+  sendABeacon();
+} /* AprsTcpClient::sendBeacon */
+
+
 
 /****************************************************************************
  *
@@ -257,7 +263,7 @@ void AprsTcpClient::posStr(char *pos)
 }
 
 
-void AprsTcpClient::sendAprsBeacon(Timer *t)
+void AprsTcpClient::sendABeacon(void)
 {
     // Geographic position
   char pos[128];
@@ -278,6 +284,12 @@ void AprsTcpClient::sendAprsBeacon(Timer *t)
 
   sendMsg(aprsmsg);
 
+} /* AprsTcpClient::sendBeacon */
+
+
+void AprsTcpClient::sendAprsBeacon(Timer *t)
+{
+  sendABeacon();
 } /* AprsTcpClient::sendAprsBeacon*/
 
 

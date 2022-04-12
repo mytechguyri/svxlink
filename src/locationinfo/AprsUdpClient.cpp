@@ -191,6 +191,12 @@ void AprsUdpClient::update3rdState(const string& call, const string& info)
 } /* AprsUdpClient::update3rdState */
 
 
+void AprsUdpClient::sendBeacon(void)
+{
+   // do nothing
+} /* AprsUdpClient::updateBeaconTimeout */
+
+
 
 /****************************************************************************
  *

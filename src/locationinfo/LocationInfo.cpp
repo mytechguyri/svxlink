@@ -39,7 +39,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <limits>
 #include <string>
 #include <sys/time.h>
-
+#include <regex.h>
+#include <iomanip>
 
 /****************************************************************************
  *
@@ -120,7 +121,8 @@ void print_error(const string &name, const string &variable,
  *
  ****************************************************************************/
 
-
+# define M_PI           3.14159265358979323846  /* pi */
+# define RADIUS         6378.16
 
 /****************************************************************************
  *
@@ -169,7 +171,15 @@ bool LocationInfo::initialize(const Async::Config &cfg, const std::string &cfg_n
   LocationInfo::_instance->loc_cfg.mycall  = value;
   LocationInfo::_instance->loc_cfg.comment = cfg.getValue(cfg_name, "COMMENT");
 
-  init_ok &= LocationInfo::_instance->parsePosition(cfg, cfg_name);
+  if(!cfg.getValue(cfg_name, "NMEA_DEVICE", value))
+  {
+    init_ok &= LocationInfo::_instance->parsePosition(cfg, cfg_name);
+  }
+  else
+  {
+    init_ok &=  LocationInfo::_instance->initNmeaDev(cfg, cfg_name);
+  }
+
   init_ok &= LocationInfo::_instance->parseStationHW(cfg, cfg_name);
   init_ok &= LocationInfo::_instance->parsePath(cfg, cfg_name);
   init_ok &= LocationInfo::_instance->parseClients(cfg, cfg_name);
@@ -712,12 +722,144 @@ void LocationInfo::mesReceived(std::string message)
   cout << message << endl;
 } /* LocationInfo::mesReceived */
 
-
 /****************************************************************************
  *
  * Private local functions
  *
  ****************************************************************************/
+
+void LocationInfo::onNmeaReceived(char *buf, int count)
+{
+  nmeastream += buf;
+  size_t found;
+  while ((found = nmeastream.find("\n")) != string::npos)
+  {
+     if (found != 0)
+    {
+      handleNmea(nmeastream.substr(0, found));
+    }
+    nmeastream.erase(0, found+1);
+  }
+} /* LocationInfo::onNmeaReceived */
+
+
+void LocationInfo::handleNmea(std::string message)
+{
+  //                $GPGLL,5119.48737,N,01201.09963,E,171526.00,A,A*6B
+  std::string reg = "GPGLL,[0-9]{3,}.[0-9]{2,},[NS],[0-9]{2,}.[0-9]{2,},[EW]";
+  if (rmatch(message, reg))
+  {
+    getNextStr(message);
+    std::string lat = getNextStr(message);
+    std::string ns = getNextStr(message);
+    std::string lon = getNextStr(message);
+    std::string ew = getNextStr(message);
+
+    loc_cfg.lat_pos.deg = atoi(lat.substr(0,2).c_str());
+    loc_cfg.lat_pos.min = atoi(lat.substr(2,2).c_str());
+    loc_cfg.lat_pos.sec = 60*atoi(lat.substr(5,4).c_str())/10000;
+    loc_cfg.lat_pos.dir = ns[0];
+
+    float lat_dec = loc_cfg.lat_pos.deg + atof(lat.substr(2,8).c_str())/60.0;
+    if (loc_cfg.lat_pos.dir == 'S') lat_dec *= -1.0;
+
+    loc_cfg.lon_pos.deg = atoi(lon.substr(0,3).c_str());
+    loc_cfg.lon_pos.min = atoi(lon.substr(3,2).c_str());
+    loc_cfg.lon_pos.sec = 60*atoi(lon.substr(6,4).c_str())/10000;
+    loc_cfg.lon_pos.dir = ew[0];
+
+    float lon_dec = loc_cfg.lon_pos.deg + atof(lon.substr(3,8).c_str())/60.0;
+    if (loc_cfg.lon_pos.dir == 'W') lon_dec *= -1.0;
+
+    if (stored_lat == 0.0) stored_lat = lat_dec;
+    if (stored_lon == 0.0) stored_lon = lon_dec;
+
+    float dist = calcDistance(lat_dec, lon_dec, stored_lat, stored_lon);
+    if (dist > 0.5)
+    {
+      stored_lat = lat_dec;
+      stored_lon = lon_dec;
+      ClientList::const_iterator it;
+      for (it = clients.begin(); it != clients.end(); it++)
+      {
+        (*it)->sendBeacon();
+      }
+    }
+
+/*    cout << "Dist:" << std::fixed << std::setprecision(6) << dist << "," << "lat-dec:" << lat_dec << ", Lon-dec:" << lon_dec << " - " << 
+    loc_cfg.lat_pos.deg << "." << loc_cfg.lat_pos.min << "." << loc_cfg.lat_pos.sec << "." << loc_cfg.lat_pos.dir << " - " <<
+    loc_cfg.lon_pos.deg << "." << loc_cfg.lon_pos.min << "." << loc_cfg.lon_pos.sec << "." << loc_cfg.lon_pos.dir << endl;
+*/
+  }
+} /* LocationInfo::handleNmea */
+
+
+float LocationInfo::calcDistance(float lat1, float lon1, float lat2, float lon2)
+{
+  double dlon = M_PI * (lon2 - lon1) / 180.0;
+  double dlat = M_PI * (lat2 - lat1) / 180.0;
+  double a = (sin(dlat / 2) * sin(dlat / 2)) + cos(M_PI*lat1/180.0) *
+              cos(M_PI*lat2/180) * (sin(dlon / 2) * sin(dlon / 2));
+  double angle = 2 * atan2(sqrt(a), sqrt(1 - a));
+  return static_cast<float>(static_cast<int>(angle * RADIUS * 100.))/100.;
+} /* LocationInfo::calcDistance */
+
+
+std::string LocationInfo::getNextStr(std::string& h)
+{
+  size_t f;
+  std::string t = h.substr(0, f = h.find(','));
+  if (f != std::string::npos)
+  {
+    h.erase(0, f + 1);
+  }
+  return t;
+} /* LocationInfo::getNextStr */
+
+
+bool LocationInfo::initNmeaDev(const Config &cfg, const std::string &name)
+{
+  std::string value = cfg.getValue(name, "NMEA_DEVICE");
+
+  nmeadev = new Serial(value);
+  if (!nmeadev->open(true))
+  {
+    cerr << "*** ERROR: Opening serial port NMEA_DEVICE="
+         << value << endl;
+    return false;
+  }
+  else
+  {
+    int baudrate = atoi(cfg.getValue(name, "NMEA_BAUD").c_str());
+    if (baudrate != 2400 && baudrate != 4800 && baudrate != 9600)
+    {
+      cout << "+++ Setting default baudrate 4800Bd for " 
+           << "/NMEA_BAUD." << endl;
+      baudrate = 4800; 
+    }
+    nmeadev->setParams(baudrate, Serial::PARITY_NONE, 8, 1, Serial::FLOW_NONE);
+    nmeadev->charactersReceived.connect(
+    	  mem_fun(*this, &LocationInfo::onNmeaReceived));
+  }
+  return true;
+} /* LocationInfo::initExtPty */
+
+// needed by regex
+bool LocationInfo::rmatch(std::string tok, std::string pattern)
+{
+  regex_t re;
+  int status = regcomp(&re, pattern.c_str(), REG_EXTENDED);
+  if (status != 0)
+  {
+    return false;
+  }
+
+  bool success = (regexec(&re, tok.c_str(), 0, NULL, 0) == 0);
+  regfree(&re);
+  return success;
+
+} /* rmatch */
+
 
   // Put all locally defined functions in an anonymous namespace to make them
   // file local. The "static" keyword has been deprecated in C++ so it
