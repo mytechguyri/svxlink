@@ -265,6 +265,11 @@ void AprsTcpClient::posStr(char *pos)
 
 void AprsTcpClient::sendABeacon(void)
 {
+  if (loc_cfg.lat_pos.deg == 0 && loc_cfg.lat_pos.min == 0 && loc_cfg.lat_pos.sec ==0
+    && loc_cfg.lon_pos.deg == 0 && loc_cfg.lon_pos.min == 0&& loc_cfg.lon_pos.sec == 0)
+  {
+    return;
+  }
     // Geographic position
   char pos[128];
   posStr(pos);
@@ -283,7 +288,6 @@ void AprsTcpClient::sendABeacon(void)
   //cout << aprsmsg;
 
   sendMsg(aprsmsg);
-
 } /* AprsTcpClient::sendBeacon */
 
 

@@ -228,8 +228,10 @@ void AprsUdpClient::sendLocationInfo(Timer *t)
   {
     char sdes_packet[256];
     int sdes_len = buildSdesPacket(sdes_packet);
-
-    sock.write(ip_addr, port, sdes_packet, sdes_len);
+    if (sdes_len != 0)
+    {
+      sock.write(ip_addr, port, sdes_packet, sdes_len);
+    }
   }
 } /* AprsUdpClient::sendLocationInfo */
 
@@ -302,6 +304,12 @@ int AprsUdpClient::buildSdesPacket(char *p)
   time(&update);
   gmtime_r(&update, &utc);
 
+  if (loc_cfg.lat_pos.deg == 0 && loc_cfg.lat_pos.min == 0 && loc_cfg.lat_pos.sec ==0
+    && loc_cfg.lon_pos.deg == 0 && loc_cfg.lon_pos.min == 0&& loc_cfg.lon_pos.sec == 0)
+  {
+    return 0;
+  }
+  
     // Geographic position
   sprintf(pos, "%02d%02d.%02d%cE%03d%02d.%02d%c",
                loc_cfg.lat_pos.deg, loc_cfg.lat_pos.min,
