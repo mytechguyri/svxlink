@@ -2716,6 +2716,16 @@ something like /dev/ttyUSB0
 .TP
 .B NMEA_BAUD
 Define the baudrate for the NMEA device, usually 4800.
+.TP
+.B GPSD
+If =1 then SvxLink expects to get the location data from a gpsd (locally or in
+network) defined by GPSD_HOST and GPSD_PORT.
+.TP
+.B GPSD_HOST
+Hostname or Ip address wher a gpsd is running.
+.TP
+.B GPSD_PORT
+TCP port where the Gpsd is expected to run (default is 2947).
 .
 .SH AUDIO DEVICE SPECIFICATIONS
 .

@@ -62,6 +62,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include "LocationInfo.h"
 #include "AprsTcpClient.h"
 #include "AprsUdpClient.h"
+#include "GpsdTcpClient.h"
 
 
 /****************************************************************************
@@ -171,13 +172,18 @@ bool LocationInfo::initialize(const Async::Config &cfg, const std::string &cfg_n
   LocationInfo::_instance->loc_cfg.mycall  = value;
   LocationInfo::_instance->loc_cfg.comment = cfg.getValue(cfg_name, "COMMENT");
 
-  if(!cfg.getValue(cfg_name, "NMEA_DEVICE", value))
+  if(cfg.getValue(cfg_name, "NMEA_DEVICE", value))
   {
-    init_ok &= LocationInfo::_instance->parsePosition(cfg, cfg_name);
+    init_ok &=  LocationInfo::_instance->initNmeaDev(cfg, cfg_name);
+  }
+  else if (cfg.getValue(cfg_name, "GPSD", value))
+  {
+    cout << "connecting GPSD" << endl;
+    init_ok &= LocationInfo::_instance->initGpsdClient(cfg, cfg_name);
   }
   else
   {
-    init_ok &=  LocationInfo::_instance->initNmeaDev(cfg, cfg_name);
+    init_ok &= LocationInfo::_instance->parsePosition(cfg, cfg_name);
   }
 
   init_ok &= LocationInfo::_instance->parseStationHW(cfg, cfg_name);
@@ -698,11 +704,11 @@ void LocationInfo::initExtPty(std::string ptydevice)
   AprsPty *aprspty = new AprsPty();
   if (!aprspty->initialize(ptydevice))
   {
-     cout << "*** ERROR: initializing aprs pty device " << ptydevice << endl;
+    cout << "*** ERROR: initializing aprs pty device " << ptydevice << endl;
   }
   else
   {
-     aprspty->messageReceived.connect(mem_fun(*this,
+    aprspty->messageReceived.connect(mem_fun(*this,
                     &LocationInfo::mesReceived));
   }
 } /* LocationInfo::initExtPty */
@@ -746,52 +752,86 @@ void LocationInfo::onNmeaReceived(char *buf, int count)
 void LocationInfo::handleNmea(std::string message)
 {
   //                $GPGLL,5119.48737,N,01201.09963,E,171526.00,A,A*6B
-  std::string reg = "GPGLL,[0-9]{3,}.[0-9]{2,},[NS],[0-9]{2,}.[0-9]{2,},[EW]";
+  //                $GPRMC,174403.00,A,5119.50974,N,01201.10715,E,0.182,,140422,,,A*7C
+  //std::string reg = "GPGLL,[0-9]{3,}.[0-9]{2,},[NS],[0-9]{2,}.[0-9]{2,},[EW]";
+  std::string reg = "GPRMC,[0-9]{3,},[AV],[0-9]{3,}.[0-9]{2,},[NS],[0-9]{3,}.[0-9]{2,},[EW],[0-9]{1,}.[0-9]{1,},";
+
   if (rmatch(message, reg))
   {
-    getNextStr(message);
-    std::string lat = getNextStr(message);
-    std::string ns = getNextStr(message);
-    std::string lon = getNextStr(message);
-    std::string ew = getNextStr(message);
+    Position pos;
+    getNextStr(message); // GPRMC
+    getNextStr(message); // Time Stamp
+    std::string valid = getNextStr(message); // validity A - ok, V - invalid
+    if (valid[0] != 'A') return;
+    std::string lat = getNextStr(message); // Latitude
+    std::string ns = getNextStr(message); // N||S
+    std::string lon = getNextStr(message); // Longitude
+    std::string ew = getNextStr(message); // E||W
+    pos.speed = atof(getNextStr(message).c_str()); // speed in kts, 72.2
+    pos.track = atof(getNextStr(message).c_str()); // course, 231.5
+    pos.lat = atoi(lat.substr(0,2).c_str()) + atof(lat.substr(2,8).c_str())/60.0;
+    if (ns[0] == 'S') pos.lat *= -1.0;
+    pos.lon = atoi(lon.substr(0,3).c_str()) + atof(lon.substr(3,8).c_str())/60.0;
+    if (ew[0] == 'W') pos.lon *= -1.0;
 
-    loc_cfg.lat_pos.deg = atoi(lat.substr(0,2).c_str());
-    loc_cfg.lat_pos.min = atoi(lat.substr(2,2).c_str());
-    loc_cfg.lat_pos.sec = 60*atoi(lat.substr(5,4).c_str())/10000;
-    loc_cfg.lat_pos.dir = ns[0];
-
-    float lat_dec = loc_cfg.lat_pos.deg + atof(lat.substr(2,8).c_str())/60.0;
-    if (loc_cfg.lat_pos.dir == 'S') lat_dec *= -1.0;
-
-    loc_cfg.lon_pos.deg = atoi(lon.substr(0,3).c_str());
-    loc_cfg.lon_pos.min = atoi(lon.substr(3,2).c_str());
-    loc_cfg.lon_pos.sec = 60*atoi(lon.substr(6,4).c_str())/10000;
-    loc_cfg.lon_pos.dir = ew[0];
-
-    float lon_dec = loc_cfg.lon_pos.deg + atof(lon.substr(3,8).c_str())/60.0;
-    if (loc_cfg.lon_pos.dir == 'W') lon_dec *= -1.0;
-
-    if (stored_lat == 0.0) stored_lat = lat_dec;
-    if (stored_lon == 0.0) stored_lon = lon_dec;
-
-    float dist = calcDistance(lat_dec, lon_dec, stored_lat, stored_lon);
-    if (dist > 0.5)
-    {
-      stored_lat = lat_dec;
-      stored_lon = lon_dec;
-      ClientList::const_iterator it;
-      for (it = clients.begin(); it != clients.end(); it++)
-      {
-        (*it)->sendBeacon();
-      }
-    }
-
-/*    cout << "Dist:" << std::fixed << std::setprecision(6) << dist << "," << "lat-dec:" << lat_dec << ", Lon-dec:" << lon_dec << " - " << 
-    loc_cfg.lat_pos.deg << "." << loc_cfg.lat_pos.min << "." << loc_cfg.lat_pos.sec << "." << loc_cfg.lat_pos.dir << " - " <<
-    loc_cfg.lon_pos.deg << "." << loc_cfg.lon_pos.min << "." << loc_cfg.lon_pos.sec << "." << loc_cfg.lon_pos.dir << endl;
-*/
+    sendAprsPosition(pos);
   }
 } /* LocationInfo::handleNmea */
+
+void LocationInfo::sendAprsPosition(const Position pos)
+{
+
+  if (stored_lat == 0.0) stored_lat = pos.lat;
+  if (stored_lon == 0.0) stored_lon = pos.lon;
+
+  float dist = calcDistance(pos.lat, pos.lon, stored_lat, stored_lon);
+  if (dist > 0.5)
+  {
+    if (pos.lat >= 0)
+    {
+      loc_cfg.lat_pos.dir = 'N';
+    }
+    else
+    {
+      loc_cfg.lat_pos.dir = 'S';
+    }
+    if (pos.lon >= 0)
+    {
+      loc_cfg.lon_pos.dir = 'E';
+    }
+    else
+    {
+      loc_cfg.lon_pos.dir = 'W';
+    }
+
+    loc_cfg.lat_pos.deg = int(abs(pos.lat));
+    loc_cfg.lat_pos.min = int(60*(abs(pos.lat)-int(abs(pos.lat))));
+    loc_cfg.lat_pos.sec = 60*(60*(abs(pos.lat)-int(abs(pos.lat))) - loc_cfg.lat_pos.min);
+
+    loc_cfg.lon_pos.deg = abs(int(pos.lon));
+    loc_cfg.lon_pos.min = int(60*(abs(pos.lon)-int(abs(pos.lon))));
+    loc_cfg.lon_pos.sec = 60*(60*(abs(pos.lon)-int(abs(pos.lon))) - loc_cfg.lon_pos.min);
+
+   // loc_cfg.lat_pos.min = atoi(lat.substr(2,2).c_str());
+   // loc_cfg.lat_pos.sec = 60*atoi(lat.substr(5,4).c_str())/10000;
+   // loc_cfg.lat_pos.dir = ns[0];
+
+   // float lat_dec = loc_cfg.lat_pos.deg + atof(lat.substr(2,8).c_str())/60.0;
+   // loc_cfg.lon_pos.deg = atoi(lon.substr(0,3).c_str());
+   // loc_cfg.lon_pos.min = atoi(lon.substr(3,2).c_str());
+   // loc_cfg.lon_pos.sec = 60*atoi(lon.substr(6,4).c_str())/10000;
+   // loc_cfg.lon_pos.dir = ew[0];
+  
+    stored_lat = pos.lat;
+    stored_lon = pos.lon;
+    
+    ClientList::const_iterator it;
+    for (it = clients.begin(); it != clients.end(); it++)
+    {
+      (*it)->sendBeacon();
+    }
+  } 
+} /* LocationInfo::sendAprsMessage */
 
 
 float LocationInfo::calcDistance(float lat1, float lon1, float lat2, float lon2)
@@ -844,6 +884,7 @@ bool LocationInfo::initNmeaDev(const Config &cfg, const std::string &name)
   return true;
 } /* LocationInfo::initExtPty */
 
+
 // needed by regex
 bool LocationInfo::rmatch(std::string tok, std::string pattern)
 {
@@ -860,6 +901,35 @@ bool LocationInfo::rmatch(std::string tok, std::string pattern)
 
 } /* rmatch */
 
+
+bool LocationInfo::initGpsdClient(const Config &cfg, const std::string &name)
+{
+  std::string value;
+  int port = 2947;
+  std::string host = "localhost";
+  if (cfg.getValue(name, "GPSD_PORT", value))
+  {
+    port = atoi(value.c_str());
+  }
+
+  if (cfg.getValue(name, "GPSD_HOST", value))
+  {
+    host = value;
+  }
+
+  cout << "connecting " << host << ":" << port<< endl;
+
+  GpsdTcpClient *gpsdcl = new GpsdTcpClient(host, port);
+  gpsdcl->gpsdDataReceived.connect(mem_fun(*this,
+                    &LocationInfo::gpsdDataReceived));
+  return true;
+} /* LocationInfo::initGpsdClient */
+
+
+void LocationInfo::gpsdDataReceived(const Position pos)
+{
+  sendAprsPosition(pos);
+} /* LocationInfo::gpsdReceived */
 
   // Put all locally defined functions in an anonymous namespace to make them
   // file local. The "static" keyword has been deprecated in C++ so it
