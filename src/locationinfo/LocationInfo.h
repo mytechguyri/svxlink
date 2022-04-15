@@ -39,7 +39,6 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 #include <vector>
 #include <list>
 #include <sys/time.h>
-//#include <json/json.h>
 
 
 /****************************************************************************
@@ -211,9 +210,14 @@ class LocationInfo
   private:
     static LocationInfo* _instance;
     LocationInfo() : sequence(0), aprs_stats_timer(0), sinterval(0), nmeadev(0),
-                     stored_lat(0), stored_lon(0) {}
+                     stored_lat(0), stored_lon(0), beacon_timer(0), offset_timer(0) {}
     LocationInfo(const LocationInfo&);
-    ~LocationInfo(void) { delete aprs_stats_timer; delete nmeadev; };
+    ~LocationInfo(void) { 
+      delete aprs_stats_timer;
+      delete offset_timer;
+      delete beacon_timer;
+      delete nmeadev;
+    };
 
     typedef std::list<AprsClient*> ClientList;
 
@@ -226,11 +230,13 @@ class LocationInfo
     Async::Serial *nmeadev;
     float stored_lat;
     float stored_lon;
+    Async::Timer        *beacon_timer;
+    Async::Timer        *offset_timer;
+    Position pos;
 
     bool parsePosition(const Async::Config &cfg, const std::string &name);
     bool parseLatitude(Coordinate &pos, const std::string &value);
     bool parseLongitude(Coordinate &pos, const std::string &value);
-
     bool parseStationHW(const Async::Config &cfg, const std::string &name);
     bool parsePath(const Async::Config &cfg, const std::string &name);
     int calculateRange(const Cfg &cfg);
@@ -238,18 +244,22 @@ class LocationInfo
     bool parseClientStr(std::string &host, int &port, const std::string &val);
     bool parseClients(const Async::Config &cfg, const std::string &name);
     void startStatisticsTimer(int interval);
+    void startNormalSequence(Async::Timer *t);
     void sendAprsStatistics(Async::Timer *t);
     void initExtPty(std::string ptydevice);
     void mesReceived(std::string message);
     void onNmeaReceived(char *buf, int count);
+    void checkPosition(void);
     void handleNmea(std::string message);
     std::string getNextStr(std::string& h);
+    void beacontimer(const Async::Config &cfg, const std::string &name);
     float calcDistance(float lat1, float lon1, float lat2, float lon2);
     bool initNmeaDev(const Async::Config &cfg, const std::string &name);
     bool rmatch(std::string tok, std::string pattern);
     bool initGpsdClient(const Async::Config &cfg, const std::string &name);
     void gpsdDataReceived(const Position pos);
-    void sendAprsPosition(const Position pos);
+    void sendAprsPosition(void);
+    void sendAprsBeacon(Async::Timer *t);
 
 };  /* class LocationInfo */
 

@@ -134,9 +134,8 @@ class AprsTcpClient : public AprsClient, public sigc::trackable
     std::string		server;
     int			port;
     Async::TcpClient<>* con;
-    Async::Timer        *beacon_timer;
     Async::Timer        *reconnect_timer;
-    Async::Timer        *offset_timer;
+
 
     int			num_connected;
 
@@ -157,7 +156,6 @@ class AprsTcpClient : public AprsClient, public sigc::trackable
     void  tcpDisconnected(Async::TcpClient<>::TcpConnection *con,
                           Async::TcpClient<>::DisconnectReason reason);
     void  reconnectAprsServer(Async::Timer *t);
-    void  startNormalSequence(Async::Timer *t);
     void  sendABeacon(void);
 
 };  /* class AprsTcpClient */

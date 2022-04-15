@@ -119,8 +119,8 @@ using namespace SvxLink;
 
 AprsTcpClient::AprsTcpClient(LocationInfo::Cfg &loc_cfg,
                             const std::string &server, int port)
-  : loc_cfg(loc_cfg), server(server), port(port), con(0), beacon_timer(0),
-    reconnect_timer(0), offset_timer(0), num_connected(0)
+  : loc_cfg(loc_cfg), server(server), port(port), con(0), reconnect_timer(0), 
+   num_connected(0)
 {
    StrList str_list;
 
@@ -135,15 +135,6 @@ AprsTcpClient::AprsTcpClient(LocationInfo::Cfg &loc_cfg,
    con->dataReceived.connect(mem_fun(*this, &AprsTcpClient::tcpDataReceived));
    con->connect();
 
-   beacon_timer = new Timer(loc_cfg.interval, Timer::TYPE_PERIODIC);
-   beacon_timer->setEnable(false);
-   beacon_timer->expired.connect(mem_fun(*this, &AprsTcpClient::sendAprsBeacon));
-
-   offset_timer = new Timer(10000, Timer::TYPE_ONESHOT);
-   offset_timer->setEnable(false);
-   offset_timer->expired.connect(mem_fun(*this,
-                 &AprsTcpClient::startNormalSequence));
-
    reconnect_timer = new Timer(5000);
    reconnect_timer->setEnable(false);
    reconnect_timer->expired.connect(mem_fun(*this,
@@ -155,8 +146,6 @@ AprsTcpClient::~AprsTcpClient(void)
 {
    delete con;
    delete reconnect_timer;
-   delete offset_timer;
-   delete beacon_timer;
 } /* AprsTcpClient::~AprsTcpClient */
 
 
@@ -362,17 +351,7 @@ void AprsTcpClient::tcpConnected(void)
           " on port " << con->remotePort() << endl;
 
   aprsLogin();                    // login
-  offset_timer->reset();          // reset the offset_timer
-  offset_timer->setEnable(true);  // restart the offset_timer
 } /* AprsTcpClient::tcpConnected */
-
-
-void AprsTcpClient::startNormalSequence(Timer *t)
-{
-  sendAprsBeacon(t);
-  beacon_timer->setEnable(true);		// start the beaconinterval
-} /* AprsTcpClient::startNormalSequence */
-
 
 
 // ToDo: possible interaction of SvxLink on commands sended via
@@ -390,10 +369,7 @@ void AprsTcpClient::tcpDisconnected(TcpClient<>::TcpConnection *con,
 {
   cout << "*** WARNING: Disconnected from APRS server" << endl;
 
-  beacon_timer->setEnable(false);		// no beacon while disconnected
   reconnect_timer->setEnable(true);		// start the reconnect-timer
-  offset_timer->setEnable(false);
-  offset_timer->reset();
 } /* AprsTcpClient::tcpDisconnected */
 
 

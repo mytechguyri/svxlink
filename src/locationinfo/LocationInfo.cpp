@@ -178,7 +178,6 @@ bool LocationInfo::initialize(const Async::Config &cfg, const std::string &cfg_n
   }
   else if (cfg.getValue(cfg_name, "GPSD", value))
   {
-    cout << "connecting GPSD" << endl;
     init_ok &= LocationInfo::_instance->initGpsdClient(cfg, cfg_name);
   }
   else
@@ -202,6 +201,8 @@ bool LocationInfo::initialize(const Async::Config &cfg, const std::string &cfg_n
   value = cfg.getValue(cfg_name, "PTY_PATH");
   LocationInfo::_instance->initExtPty(value);
 
+  LocationInfo::_instance->beacontimer(cfg, cfg_name);
+  
   if( !init_ok )
   {
     delete LocationInfo::_instance;
@@ -459,19 +460,6 @@ bool LocationInfo::parseStationHW(const Async::Config &cfg, const string &name)
   {
     print_error(name, "TONE", cfg.getValue(name, "TONE"), "TONE=0");
     success = false;
-  }
-
-  int interval = 10;
-  int max = numeric_limits<int>::max();
-  if (!cfg.getValue(name, "BEACON_INTERVAL", 10, max, interval, true))
-  {
-    print_error(name, "BEACON_INTERVAL", cfg.getValue(name, "BEACON_INTERVAL"),
-                "BEACON_INTERVAL=10");
-    success = false;
-  }
-  else
-  {
-    loc_cfg.interval = 60 * 1000 * interval;
   }
 
   loc_cfg.range = calculateRange(loc_cfg);
@@ -758,7 +746,6 @@ void LocationInfo::handleNmea(std::string message)
 
   if (rmatch(message, reg))
   {
-    Position pos;
     getNextStr(message); // GPRMC
     getNextStr(message); // Time Stamp
     std::string valid = getNextStr(message); // validity A - ok, V - invalid
@@ -773,64 +760,98 @@ void LocationInfo::handleNmea(std::string message)
     if (ns[0] == 'S') pos.lat *= -1.0;
     pos.lon = atoi(lon.substr(0,3).c_str()) + atof(lon.substr(3,8).c_str())/60.0;
     if (ew[0] == 'W') pos.lon *= -1.0;
-
-    sendAprsPosition(pos);
+    checkPosition();
   }
 } /* LocationInfo::handleNmea */
 
-void LocationInfo::sendAprsPosition(const Position pos)
+
+void LocationInfo::beacontimer(const Config &cfg, const std::string &name)
 {
 
+  int interval = 10;
+  int max = numeric_limits<int>::max();
+
+  if (!cfg.getValue(name, "BEACON_INTERVAL", 10, max, interval, true))
+  {
+    print_error(name, "BEACON_INTERVAL", cfg.getValue(name, "BEACON_INTERVAL"),
+                "BEACON_INTERVAL=10");
+  }
+  else
+  {
+    loc_cfg.interval = 60 * 1000 * interval;
+  }
+  beacon_timer = new Timer(loc_cfg.interval , Timer::TYPE_PERIODIC);
+  beacon_timer->setEnable(false);
+  beacon_timer->expired.connect(mem_fun(*this, &LocationInfo::sendAprsBeacon));
+  
+  offset_timer = new Timer(5000, Timer::TYPE_ONESHOT);
+  offset_timer->setEnable(true);
+  offset_timer->expired.connect(mem_fun(*this,
+                 &LocationInfo::startNormalSequence));
+} /* LocationInfo::beacontimer */
+
+
+void LocationInfo::startNormalSequence(Async::Timer *t)
+{
+  sendAprsPosition();
+  beacon_timer->setEnable(true);
+} /* LocationInfo::startNormalSequence */
+
+
+void LocationInfo::checkPosition(void)
+{
   if (stored_lat == 0.0) stored_lat = pos.lat;
   if (stored_lon == 0.0) stored_lon = pos.lon;
 
   float dist = calcDistance(pos.lat, pos.lon, stored_lat, stored_lon);
   if (dist > 0.5)
   {
-    if (pos.lat >= 0)
-    {
-      loc_cfg.lat_pos.dir = 'N';
-    }
-    else
-    {
-      loc_cfg.lat_pos.dir = 'S';
-    }
-    if (pos.lon >= 0)
-    {
-      loc_cfg.lon_pos.dir = 'E';
-    }
-    else
-    {
-      loc_cfg.lon_pos.dir = 'W';
-    }
+    sendAprsPosition();
+  }
+} /* LocationInfo::checkPosition */
 
-    loc_cfg.lat_pos.deg = int(abs(pos.lat));
-    loc_cfg.lat_pos.min = int(60*(abs(pos.lat)-int(abs(pos.lat))));
-    loc_cfg.lat_pos.sec = 60*(60*(abs(pos.lat)-int(abs(pos.lat))) - loc_cfg.lat_pos.min);
 
-    loc_cfg.lon_pos.deg = abs(int(pos.lon));
-    loc_cfg.lon_pos.min = int(60*(abs(pos.lon)-int(abs(pos.lon))));
-    loc_cfg.lon_pos.sec = 60*(60*(abs(pos.lon)-int(abs(pos.lon))) - loc_cfg.lon_pos.min);
+void LocationInfo::sendAprsBeacon(Async::Timer *t)
+{
+  sendAprsPosition();
+} /* LocationInfo::sendAprsBeacon */
 
-   // loc_cfg.lat_pos.min = atoi(lat.substr(2,2).c_str());
-   // loc_cfg.lat_pos.sec = 60*atoi(lat.substr(5,4).c_str())/10000;
-   // loc_cfg.lat_pos.dir = ns[0];
 
-   // float lat_dec = loc_cfg.lat_pos.deg + atof(lat.substr(2,8).c_str())/60.0;
-   // loc_cfg.lon_pos.deg = atoi(lon.substr(0,3).c_str());
-   // loc_cfg.lon_pos.min = atoi(lon.substr(3,2).c_str());
-   // loc_cfg.lon_pos.sec = 60*atoi(lon.substr(6,4).c_str())/10000;
-   // loc_cfg.lon_pos.dir = ew[0];
-  
-    stored_lat = pos.lat;
-    stored_lon = pos.lon;
-    
-    ClientList::const_iterator it;
-    for (it = clients.begin(); it != clients.end(); it++)
-    {
-      (*it)->sendBeacon();
-    }
-  } 
+void LocationInfo::sendAprsPosition(void)
+{
+  if (pos.lat >= 0)
+  {
+    loc_cfg.lat_pos.dir = 'N';
+  }
+  else
+  {
+    loc_cfg.lat_pos.dir = 'S';
+  }
+  if (pos.lon >= 0)
+  {
+    loc_cfg.lon_pos.dir = 'E';
+  }
+  else
+  {
+    loc_cfg.lon_pos.dir = 'W';
+  }
+
+  loc_cfg.lat_pos.deg = int(abs(pos.lat));
+  loc_cfg.lat_pos.min = int(60*(abs(pos.lat)-int(abs(pos.lat))));
+  loc_cfg.lat_pos.sec = 60*(60*(abs(pos.lat)-int(abs(pos.lat))) - loc_cfg.lat_pos.min);
+
+  loc_cfg.lon_pos.deg = abs(int(pos.lon));
+  loc_cfg.lon_pos.min = int(60*(abs(pos.lon)-int(abs(pos.lon))));
+  loc_cfg.lon_pos.sec = 60*(60*(abs(pos.lon)-int(abs(pos.lon))) - loc_cfg.lon_pos.min);
+
+  stored_lat = pos.lat;
+  stored_lon = pos.lon;
+
+  ClientList::const_iterator it;
+  for (it = clients.begin(); it != clients.end(); it++)
+  {
+    (*it)->sendBeacon();
+  }
 } /* LocationInfo::sendAprsMessage */
 
 
@@ -926,9 +947,10 @@ bool LocationInfo::initGpsdClient(const Config &cfg, const std::string &name)
 } /* LocationInfo::initGpsdClient */
 
 
-void LocationInfo::gpsdDataReceived(const Position pos)
+void LocationInfo::gpsdDataReceived(const Position ownpos)
 {
-  sendAprsPosition(pos);
+  pos = ownpos;
+  checkPosition();
 } /* LocationInfo::gpsdReceived */
 
   // Put all locally defined functions in an anonymous namespace to make them
