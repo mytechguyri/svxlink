@@ -88,7 +88,7 @@ using namespace pj;
  *
  ****************************************************************************/
 #define DEFAULT_SIPLIMITER_THRESH  -1.0
-#define PJSIP_VERSION "10042022"
+#define PJSIP_VERSION "21042022"
 
 
 /****************************************************************************
@@ -693,7 +693,6 @@ bool SipLogic::initialize(void)
   msg_handler->allMsgsWritten.connect(mem_fun(*this, &SipLogic::allMsgsWritten));
 
   selector->addSource(msg_handler);
-  selector->enableAutoSelect(msg_handler,10);
   selector->setFlushWait(msg_handler,false);
 
   m_logic_con_out = selector;
