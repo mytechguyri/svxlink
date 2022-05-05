@@ -42,8 +42,8 @@ proc unknown_command {cmd} {
 #
 proc drop_outgoing_call {caller} {
   puts "Dropping outgoing call to $caller due to configuration.";
-#  playMsg "SipLogic" "call_not_allowed";
-#  playSilence 200;
+  playMsg "SipLogic" "call_not_allowed";
+  playSilence 200;
 }
 
 
@@ -52,8 +52,8 @@ proc drop_outgoing_call {caller} {
 #
 proc reject_incoming_call {caller} {
   puts "Rejecting incoming call from $caller due to configuration.";
-#  playMsg "SipLogic" "reject_incoming_call";
-#  playSilence 200;
+  playMsg "SipLogic" "reject_incoming_call";
+  playSilence 200;
 }
 
 
@@ -135,7 +135,7 @@ proc checkPeriodicIdentify {} {
 #
 proc pickup_call {caller} {
   puts "pickup call from: $caller";
-#  playSilence 500;
+  playSilence 500;
 }
 
 
@@ -143,11 +143,10 @@ proc pickup_call {caller} {
 # Executed if an outgoing call is pending
 #
 proc calling {caller} {
-  puts "Outgoing phone call to $caller";
-#  playSilence 500;
-#  playMsg "SipLogic" "outgoing_phonecall";
-#  playSilence 100;
-#  spellNumber [getCallerNumber $caller];
+  playSilence 500;
+  playMsg "SipLogic" "outgoing_phonecall";
+  playSilence 100;
+  spellNumber [getCallerNumber $caller];
 }
 
 
@@ -172,12 +171,11 @@ proc ringing {caller} {
 # Executed if an incoming call is established
 #
 proc incoming_call {caller} {
-puts "Incoming phone call from $caller";
-#  playSilence 500;
-#  playMsg "SipLogic" "incoming_phonecall";
-#  playSilence 100;
-#  playNumber [getCallerNumber $caller];
-#  playSilence 200;
+  playSilence 500;
+  playMsg "SipLogic" "incoming_phonecall";
+  playSilence 100;
+  playNumber [getCallerNumber $caller];
+  playSilence 200;
 }
 
 
@@ -219,8 +217,8 @@ proc logic_online {online} {
 #
 proc call_timeout {} {
   puts "Called party is not at home";
-#  playMsg "SipLogic" "person_not_available";
-#  playSilence 200;
+  playMsg "SipLogic" "person_not_available";
+  playSilence 200;
 }
 
 
@@ -229,8 +227,8 @@ proc call_timeout {} {
 #
 proc hangup_call {uri duration} {
   puts "Hangup call $uri ($duration seconds)";
-#  playMsg "SipLogic" "call_terminated";
-#  playSilence 200;
+  playMsg "SipLogic" "call_terminated";
+  playSilence 200;
 }
 
 
@@ -269,8 +267,8 @@ proc getCallerNumber {uri} {
 # ToDo: Sends a reject-message to the caller via Sip
 #
 proc remote_reject_call {} {
-#  playMsg "call_rejected";
-#  playSilence 2500;
+  playMsg "call_rejected";
+  playSilence 2500;
 }
 
 
@@ -278,8 +276,8 @@ proc remote_reject_call {} {
 # ToDo: Sends a greeting message to the caller via Sip
 #
 proc remote_greeting {} {
-#  playMsg "welcome";
-#  playSilence 200;
+  playMsg "SipLogic" "welcome";
+  playSilence 200;
 }
 
 
@@ -313,16 +311,24 @@ proc unknown_callstate {caller} {
 
 
 #
-# do not use!
+# Executed on imcoming sip message from a connected party
 #
-proc pjsip_state_early {caller} {
+proc text_message_received {uri message} {
+  puts "Message from $uri received:";
+  puts "$message";
 }
 
 
 #
-# do not use!
 #
-proc pjsip_state_null {caller} {
+#
+#
+# Executed on imcoming sip message from a not connected party over
+# the registered account
+#
+proc account_text_message_received {uri message} {
+  puts "Message from $uri received:";
+  puts "$message";
 }
 
 # end of namespace
