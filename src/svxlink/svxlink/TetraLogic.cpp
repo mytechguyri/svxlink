@@ -127,8 +127,11 @@ using namespace SvxLink;
 #define LOGWARN 1
 #define LOGINFO 2
 #define LOGDEBUG 3
+#define LOGTRACE 4
 
-#define TETRA_LOGIC_VERSION "12052022"
+#define MAX_TRIES 5
+
+#define TETRA_LOGIC_VERSION "19052022"
 
 /****************************************************************************
  *
@@ -200,7 +203,7 @@ TetraLogic::TetraLogic(Async::Config& cfg, const string& name)
   proximity_warning(3.1), time_between_sds(3600), own_lat(0.0),
   own_lon(0.0), endCmd(""), new_sds(false), inTransmission(false),
   cmgs_received(true), share_userinfo(true), current_cci(0), dmnc(0),
-  dmcc(0), infosds(""), is_tx(false), last_sdsid(0), maxtries(10)
+  dmcc(0), infosds(""), is_tx(false), last_sdsid(0)
 {
   peiComTimer.expired.connect(mem_fun(*this, &TetraLogic::onComTimeout));
   peiActivityTimer.expired.connect(mem_fun(*this,
@@ -312,14 +315,14 @@ bool TetraLogic::initialize(void)
 
   if (!cfg().getValue(name(), "PORT", port))
   {
-     cout << "Warning: Missing parameter " << name() << "/PORT"
-          << endl;
+    log(LOGWARN, "Missing parameter " + name() + "/PORT");
+    isok = false;
   }
 
   if (!cfg().getValue(name(), "BAUD", baudrate))
   {
-     cout << "Warning: Missing parameter " << name() << "/BAUD, guess "
-          << baudrate << endl;
+    log(LOGWARN, "Missing parameter " + name()
+        + "/BAUD, guess " + to_string(baudrate));
   }
 
   if (cfg().getValue(name(), "DEFAULT_APRS_ICON", value))
@@ -474,12 +477,9 @@ bool TetraLogic::initialize(void)
       m_user.last_activity = mktime(&mtime);
       m_user.sent_last_sds = mktime(&mtime);
       userdata[m_user.issi] = m_user;
-      if (debug >= LOGINFO)
-      {
-        cout << "tsi=" << m_user.issi << ",call=" << m_user.call << ",name="
-             << m_user.name << ",location=" << m_user.location << ",comment="
-             << m_user.comment << endl;
-      }
+      log(LOGINFO, "Tsi=" + m_user.issi + ", call=" + m_user.call
+             + ", name=" + m_user.name + ", location=" + m_user.location
+             + ", comment=" + m_user.comment);
     }
   }
 
@@ -586,10 +586,7 @@ bool TetraLogic::initialize(void)
       }
       else
       {
-        if (debug >= LOGINFO)
-        {
-          cout << isds << "=" << value << endl;
-        }
+        log(LOGINFO, isds + "=" + value);
         state_sds[isds] = value;
       }
     }
@@ -610,7 +607,7 @@ bool TetraLogic::initialize(void)
   tetra_modem_sql = dynamic_cast<SquelchTetra*>(squelch_det);
   if (tetra_modem_sql != nullptr)
   {
-    cout << "Creating tetra specific Sql ok" << endl;
+    log(LOGINFO, "Creating tetra specific Sql ok");
   }
   else
   {
@@ -621,8 +618,8 @@ bool TetraLogic::initialize(void)
   // init the Pei device
   if (!cfg().getValue(name(), "INIT_PEI", initstr))
   {
-    cout << "Warning: Missing parameter " << name()
-         << "/INIT_PEI, using defaults" << endl;
+    log(LOGWARN, "Warning: Missing parameter " + name()
+         + "/INIT_PEI, using defaults");
   }
   SvxLink::splitStr(initcmds, initstr, ";");
   m_cmds = initcmds;
@@ -635,27 +632,24 @@ bool TetraLogic::initialize(void)
     dapnetclient = new DapNetClient(cfg(), name());
     dapnetclient->dapnetMessageReceived.connect(mem_fun(*this,
                     &TetraLogic::onDapnetMessage));
+    dapnetclient->dapnetLogmessage.connect(mem_fun(*this,
+                    &TetraLogic::onDapnetLogmessage));
     if (!dapnetclient->initialize())
     {
       cerr << "*** ERROR: initializing DAPNET client" << endl;
-      return false;
+      isok = false;
     }
   }
 
   cfg().getValue(name(),"SHARE_USERINFO", share_userinfo);
 
-  if (!cfg().getValue(name(), "MAX_TRIES", maxtries))
-  {
-    maxtries = 10;
-  }
-  
   pei = new Serial(port);
 
   if (!pei->open(true))
   {
     cerr << "*** ERROR: Opening serial port " << name() << "/PORT="
          << port << endl;
-    return false;
+    isok = false;
   }
   pei->setParams(baudrate, Serial::PARITY_NONE, 8, 1, Serial::FLOW_NONE);
   pei->charactersReceived.connect(
@@ -683,7 +677,6 @@ bool TetraLogic::initialize(void)
 
   // Test/Debug entries for bug detection, normally comment out
   /*std::string sds = "0A0BA7D5B95BC50AFFE16";
-  std::string sds = "0A0088BD4247F702FFE810";
   LipInfo li;
   handleLipSds(sds, li);
   cout << "Lipinfo from Carsten: " << sds << endl;
@@ -700,7 +693,8 @@ bool TetraLogic::initialize(void)
 
 void TetraLogic::remoteCmdReceived(LogicBase* src_logic, const std::string& cmd)
 {
-  cout << "command received:" << cmd << endl;
+  log(LOGTRACE, "TetraLogic::remoteCmdReceived: " 
+           + src_logic->name() + " -> " + cmd);
 } /* TetraLogic::remoteCmdReceived */
 
 
@@ -728,6 +722,7 @@ void TetraLogic::audioStreamStateChange(bool is_active, bool is_idle)
 
 void TetraLogic::transmitterStateChange(bool is_transmitting)
 {
+
   std::string cmd;
   is_tx = is_transmitting;
 
@@ -735,6 +730,7 @@ void TetraLogic::transmitterStateChange(bool is_transmitting)
   {
     if (!talkgroup_up)
     {
+      log(LOGTRACE, "TetraLogic::transmitterStateChange: " + gssi);
       initGroupCall(gssi);
       talkgroup_up = true;
     }
@@ -767,16 +763,21 @@ void TetraLogic::squelchOpen(bool is_open)
   // FIXME: A squelch open should not be possible to receive while
   // transmitting unless mute_rx_on_tx is false, in which case it
   // should be allowed. Commenting out the statements below.
-
+  std::string s = (is_open ? "true" : "false");
+  log(LOGTRACE, "TetraLogic::squelchOpen: squelchopen=" + s);
+  
   if (tx().isTransmitting())
   {
+    log(LOGTRACE, "TetraLogic::squelchOpen: tx().isTransmitting()=true");
     return;
   }
 
+  log(LOGTRACE, "TetraLogic::squelchOpen: tetra_modem_sql->setSql(" + s + ")");
   tetra_modem_sql->setSql(is_open);
+  log(LOGTRACE, "TetraLogic::squelchOpen: rx().setSql(" + s + ")");
   rx().setSql(is_open);
+  log(LOGTRACE, "TetraLogic::squelchOpen: Logic::squelchOpen(" + s + ")");
   Logic::squelchOpen(is_open);
-
 } /* TetraLogic::squelchOpen */
 
 
@@ -903,12 +904,11 @@ void TetraLogic::onCharactersReceived(char *buf, int count)
 void TetraLogic::handlePeiAnswer(std::string m_message)
 {
 
-  if (debug >= LOGINFO)
-  {
-    cout << "From PEI:" << m_message << endl;
-  }
+  log(LOGINFO, "From PEI:" + m_message);
 
   int response = handleMessage(m_message);
+
+  log(LOGTRACE, "TetraLogic::handlePeiAnswer: reponse=" + to_string(response));
 
   switch (response)
   {
@@ -919,9 +919,9 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
 
     case ERROR:
       peistate = ERROR;
-      if (m_message.length()>11 && debug >= LOGINFO)
+      if (m_message.length()>11)
       {
-        cout << getPeiError(atoi(m_message.erase(0,11).c_str())) << endl;
+        log(LOGINFO, getPeiError(atoi(m_message.erase(0,11).c_str())) );
       }
       break;
 
@@ -989,7 +989,7 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
       break;
 
     case CTDGR:
-      cout << handleCtdgr(m_message);
+      log(LOGINFO, handleCtdgr(m_message));
       break;
 
     case CLVL:
@@ -997,10 +997,7 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
       break;
 
     case INVALID:
-      if (debug >= LOGWARN)
-      {
-        cout << "+++ Pei answer not known, ignoring ;)" << endl;
-      }
+      log(LOGWARN, "+++ Pei answer not known, ignoring ;)");
 
     default:
       break;
@@ -1016,6 +1013,7 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
 
 void TetraLogic::initGroupCall(int gc_gssi)
 {
+  log(LOGTRACE, "TetraLogic::initGroupCall: " + to_string(gc_gssi));
   inTransmission = true;
   std::string cmd = "AT+CTSDC=0,0,0,1,1,0,1,1,0,0,0";
   sendPei(cmd);
@@ -1047,15 +1045,14 @@ TETRA Incoming Call Notification +CTICN
 */
 void TetraLogic::handleCallBegin(std::string message)
 {
+  log(LOGTRACE,"TetraLogic::handleCallBegin: " + message);
+
   //                   +CTICN:   1,    0,    0,    4,    1002,       1,     1,     0,   1,    1,   0,    1000,       1
   std::string reg = "\\+CTICN: [0-9]{1,3},[0-9],[0-9],[0-9],[0-9]{1,17},[0-9],[0-9],[0-9],[0-9],[0-9],[0-9],[0-9]{1,17},[0-9]";
 
   if (!rmatch(message, reg))
   {
-    if (debug >= LOGWARN)
-    {
-      cout << "*** Wrong +CTICN response (wrong format)" << endl;
-    }
+    log(LOGWARN, "*** Wrong +CTICN response (wrong format)");
     return;
   }
   squelchOpen(true);  // open the Squelch
@@ -1168,6 +1165,7 @@ void TetraLogic::handleCallBegin(std::string message)
   stringstream m_aprsmesg;
   m_aprsmesg << aprspath << ">" << iu->second.call << " initiated groupcall: "
              << t_ci.o_issi << " -> " << t_ci.d_issi;
+  log(LOGTRACE, "TetraLogic::handleCallBegin: " + m_aprsmesg.str());
   sendAprs(iu->second.call, m_aprsmesg.str());
 } /* TetraLogic::handleCallBegin */
 
@@ -1214,11 +1212,8 @@ void TetraLogic::firstContact(Sds tsds)
     tsds.message = infosds;
     tsds.type = TEXT;
     tsds.remark = "Welcome Sds to a new user";
-    if (debug >= LOGINFO)
-    {
-      cout << "Sending info Sds to new user " << tsds.tsi << " \""
-           << infosds << "\"" << endl;
-    }
+    log(LOGINFO, "Sending info Sds to new user " + tsds.tsi
+         + " \"" + infosds + "\"");
     queueSds(tsds);
   }
 } /* TetraLogic::firstContact */
@@ -1232,6 +1227,7 @@ void TetraLogic::firstContact(Sds tsds)
 */
 void TetraLogic::handleSdsMsg(std::string sds)
 {
+  log(LOGTRACE, "TetraLogic::handleSdsMsg: " + sds);
   Sds t_sds;
   stringstream ss, sstcl;
   std::string sds_txt;
@@ -1289,6 +1285,9 @@ void TetraLogic::handleSdsMsg(std::string sds)
       sdsinfo["lat"] = lipinfo.latitude;
       sdsinfo["lon"] = lipinfo.longitude;
       sdsinfo["reasonforsending"] = lipinfo.reasonforsending;
+      log(LOGTRACE, "TetraLogic::handleSdsMsg: LIP_SDS: TSI=" + t_sds.tsi
+          + "lat=" + to_string(lipinfo.latitude) + ", lon="
+          + to_string(lipinfo.longitude));
       break;
 
     case STATE_SDS:
@@ -1341,10 +1340,7 @@ void TetraLogic::handleSdsMsg(std::string sds)
 
     case INVALID:
       ss << "unknown_sds_received";
-      if (debug >= LOGWARN)
-      {
-        cout << "*** Unknown type of SDS" << endl;
-      }
+      log(LOGWARN, "*** Unknown type of SDS");
       break;
 
     default:
@@ -1367,6 +1363,7 @@ void TetraLogic::handleSdsMsg(std::string sds)
   {
     string m_aprsmessage = aprspath;
     m_aprsmessage += m_aprsinfo.str();
+    log(LOGTRACE, m_aprsmessage);
     sendAprs(userdata[t_sds.tsi].call, m_aprsmessage);
   }
 
@@ -1419,6 +1416,7 @@ std::string TetraLogic::handleCtdgr(std::string m_message)
     ssret << "INFO: Station " << TransientComType[dmct] << " detected (ISSI="
           << drp.issi << ", MNI=" << drp.mni << ", state=" << drp.state << ")"
           << endl;
+    log(LOGDEBUG, ssret.str());
 
     dmo_rep_gw.emplace(drp.issi, drp);
 
@@ -1441,6 +1439,7 @@ void TetraLogic::handleClvl(std::string m_message)
   }
 
   ss << "audio_level " << getNextVal(m_message);
+  log(LOGTRACE, "TetraLogic::handleClvl: " + ss.str());
   processEvent(ss.str());
 } /* TetraLogic::handleClvl */
 
@@ -1471,28 +1470,22 @@ void TetraLogic::handleCmgs(std::string m_message)
 
   if (last_sdsinstance == sds_inst)
   {
-    pending_sds.state = state;
     if (state == SDS_SEND_FAILED)
     {
-      double timediff = difftime(pending_sds.tos, time(NULL) + 5);
-      pending_sds.tos = time(NULL) + 5; // delay next send of SDS of 5 seconds
-      if (debug >= LOGERROR)
-      {
-        cout << "*** ERROR: Sending message failed. Will send again in " 
-             << timediff << " seconds." << endl;
-      }
+      log(LOGERROR, "*** ERROR: Sending message failed. Will send again...");
     }
     else if(state == SDS_SEND_OK)
     {
       // MT confirmed the sending of a SDS
       pending_sds.tod = time(NULL); // time of delivery
-      for (it = sdsQueue.begin(); it != sdsQueue.end(); it++)
+      for (it=sdsQueue.begin(); it!=sdsQueue.end(); it++)
       {
         if (it->second.id == pending_sds.id)
         {
           it->second = pending_sds;
-          cout << "+++ message (" << it->second.id << ") with ref#" << id
-               << " to " << it->second.tsi << " successfully sent." << endl;
+          log(LOGINFO, "+++ message (" + to_string(it->second.id)
+              + ") with ref#" + to_string(id) + " to " 
+              + it->second.tsi + " successfully sent.");
           break;
         }
       }
@@ -1536,8 +1529,10 @@ std::string TetraLogic::handleSimpleTextSds(std::string m_message)
 */
 void TetraLogic::handleTxGrant(std::string txgrant)
 {
+  log(LOGTRACE, "TetraLogic::handleTxGrant: " + txgrant);
   if (!is_tx && peistate==OK)
   {
+    log(LOGTRACE, "TetraLogic::handleTxGrant: squelchOpen(true)");
     squelchOpen(true);
   }
   stringstream ss;
@@ -1587,12 +1582,7 @@ std::string TetraLogic::getTSI(std::string issi)
 void TetraLogic::handleStateSds(unsigned int isds)
 {
   stringstream ss;
-
-  if (debug >= LOGINFO)
-  {
-    cout << "+++ State Sds received: " << isds << endl;
-  }
-
+  log(LOGINFO, "+++ State Sds received: " + to_string(isds));
   std::map<unsigned int, string>::iterator it = sds_to_command.find(isds);
 
   if (it != sds_to_command.end())
@@ -1618,6 +1608,8 @@ void TetraLogic::handleStateSds(unsigned int isds)
  */
 void TetraLogic::handleTransmissionEnd(std::string message)
 {
+  log(LOGTRACE, "TetraLogic::handleTransmissionEnd: " + message);
+  log(LOGTRACE, "TetraLogic::handleTransmissionEnd: squelchOpen(false)");
   squelchOpen(false);  // close Squelch
   stringstream ss;
   ss << "groupcall_end";
@@ -1631,6 +1623,7 @@ void TetraLogic::handleTransmissionEnd(std::string message)
 void TetraLogic::handleCallReleased(std::string message)
 {
   // update Qso information, set time of activity
+  log(LOGTRACE, "TetraLogic::handleCallReleased: " + message);
   Qso.stop = time(NULL);
 
   stringstream ss;
@@ -1640,10 +1633,12 @@ void TetraLogic::handleCallReleased(std::string message)
   if (tetra_modem_sql->isOpen())
   {
     ss << "out_of_range " << getNextVal(message);
+    log(LOGTRACE, "TetraLogic::handleCallReleased: " + ss.str());
   }
   else
   {
     ss << "call_end \"" << DisconnectCause[getNextVal(message)] << "\"";
+    log(LOGTRACE, "TetraLogic::handleCallReleased: " + ss.str());
   }
   processEvent(ss.str());
   squelchOpen(false);  // close Squelch
@@ -1675,6 +1670,7 @@ void TetraLogic::handleCallReleased(std::string message)
   {
     m_aprsmesg += ">Transmission ended";
   }
+  log(LOGTRACE, "TetraLogic::handleCallReleased: " + m_aprsmesg);
   sendAprs(userdata[Qso.tsi].call, m_aprsmesg);
 
   talkgroup_up = false;
@@ -1708,10 +1704,7 @@ void TetraLogic::sendPei(std::string cmd)
 
   pei->write(cmd.c_str(), cmd.length());
 
-  if (debug >= LOGDEBUG)
-  {
-    cout << "  To PEI:" << cmd << endl;
-  }
+  log(LOGDEBUG, "  To PEI:" + cmd);
 
   peiComTimer.reset();
   peiComTimer.setEnable(true);
@@ -1722,6 +1715,7 @@ void TetraLogic::onComTimeout(Async::Timer *timer)
 {
   stringstream ss;
   ss << "peiCom_timeout";
+  log(LOGTRACE, "TetraLogic::onComTimeout: " + ss.str());
   processEvent(ss.str());
   peistate = TIMEOUT;
 } /* TetraLogic::onComTimeout */
@@ -1752,6 +1746,7 @@ void TetraLogic::cfmSdsReceived(std::string tsi)
   t_sds.message = msg;
   t_sds.tsi = tsi;
   t_sds.direction = OUTGOING;
+  log(LOGTRACE, "TetraLogic::cfmSdsReceived: " + tsi);
   queueSds(t_sds);
 } /* TetraLogic::cfmSdsReceived */
 
@@ -1764,10 +1759,7 @@ void TetraLogic::cfmTxtSdsReceived(std::string message, std::string tsi)
   std::string msg("821000");  // confirm a sds received
   msg += id;
 
-  if (debug >= LOGINFO)
-  {
-    cout << "+++ sending confirmation Sds to " << tsi << endl;
-  }
+  log(LOGINFO, "+++ sending confirmation Sds to " + tsi);
 
   Sds t_sds;
   t_sds.message = msg;
@@ -1792,8 +1784,8 @@ void TetraLogic::handleCnumf(std::string m_message)
   int t_mnc, t_mcc, t_issi;
   short m_numtype = getNextVal(m_message);
 
-  if (debug >= LOGINFO) cout << "<num type> is " << m_numtype << " ("
-               << NumType[m_numtype] << ")" << endl;
+  log(LOGINFO, "<num type> is " + to_string(m_numtype)
+      + " (" + NumType[m_numtype] + ")");
 
   if (m_numtype == 6 || m_numtype == 0)
   {
@@ -1803,32 +1795,23 @@ void TetraLogic::handleCnumf(std::string m_message)
     // check if the configured MCC fits to MCC in MS
     if (t_mcc != atoi(mcc.c_str()))
     {
-      if (debug >= LOGWARN)
-      {
-        cout << "*** ERROR: wrong MCC in MS, will not work! "
-             << mcc << "!=" << t_mcc << endl;
-      }
+      log(LOGWARN, "*** ERROR: wrong MCC in MS, will not work! "
+             + mcc + "!=" + to_string(t_mcc));
     }
 
      // check if the configured MNC fits to MNC in MS
     if (t_mnc != atoi(mnc.c_str()))
     {
-      if (debug >= LOGWARN)
-      {
-        cout << "*** ERROR: wrong MNC in MS, will not work! "
-             << mnc << "!=" << t_mnc << endl;
-      }
+      log(LOGWARN, "*** ERROR: wrong MNC in MS, will not work! "
+             + mnc + "!=" + to_string(t_mnc));
     }
     dmcc = t_mcc;
     dmnc = t_mnc;
 
     if (atoi(issi.c_str()) != t_issi)
     {
-      if (debug >= LOGWARN)
-      {
-        cout << "*** ERROR: wrong ISSI in MS, will not work! "
-             << issi <<"!=" << t_issi << endl;
-      }
+      log(LOGWARN, "*** ERROR: wrong ISSI in MS, will not work! "
+             + issi + "!=" + to_string(t_issi));
     }
   }
 
@@ -1844,6 +1827,7 @@ void TetraLogic::handleCnumf(std::string m_message)
 */
 void TetraLogic::sdsPtyReceived(const void *buf, size_t count)
 {
+
   const char *buffer = reinterpret_cast<const char*>(buf);
   std::string injmessage = "";
 
@@ -1851,9 +1835,10 @@ void TetraLogic::sdsPtyReceived(const void *buf, size_t count)
   {
     injmessage += *buffer++;
   }
+  log(LOGTRACE, "TetraLogic::sdsPtyReceived: " + injmessage);
   string m_tsi = getNextStr(injmessage);
   string type = getNextStr(injmessage);
-  
+
   // put the new Sds int a queue...
   Sds t_sds;
   t_sds.tsi = m_tsi;
@@ -1931,11 +1916,7 @@ void TetraLogic::sendInfoSds(std::string tsi, short reason)
         t_sds.direction = OUTGOING;
         t_sds.type = TEXT_SDS;
 
-        if (debug >= LOGINFO)
-        {
-          cout << "SEND info SDS (to " << t_iu->first << "):"
-               << ss.str() << endl;
-        }
+        log(LOGINFO, "SEND info SDS (to " + t_iu->first + "):" + ss.str());
         // queue SDS
         queueSds(t_sds);
         t_iu->second.sent_last_sds = time(NULL);
@@ -2002,10 +1983,7 @@ void TetraLogic::getAiMode(std::string aimode)
   if (aimode.length() > 6)
   {
     int t = atoi(aimode.erase(0,6).c_str());
-    if (debug >= LOGINFO)
-    {
-      cout << "+++ New Tetra mode: " << AiMode[t] << endl;
-    }
+    log(LOGINFO, "+++ New Tetra mode: " + AiMode[t]);
     stringstream ss;
     ss << "tetra_mode " << t;
     processEvent(ss.str());
@@ -2031,8 +2009,8 @@ bool TetraLogic::rmatch(std::string tok, std::string pattern)
 // receive interlogic messages here
 void TetraLogic::onPublishStateEvent(const string &event_name, const string &msg)
 {
-  //cout << "TetraLogic::onPublishStateEvent - event_name: " << event_name
-  //      << ", message: " << msg << endl;
+  log(LOGTRACE, "TetraLogic::onPublishStateEvent - event_name: " 
+        + event_name + ", message: " +msg);
 
   // if it is not allowed to handle information about users then all userinfo
   // traffic will be ignored
@@ -2043,20 +2021,14 @@ void TetraLogic::onPublishStateEvent(const string &event_name, const string &msg
   bool b = reader.parse(msg, user_arr);
   if (!b)
   {
-    if (debug >= LOGERROR)
-    {
-      cout << "*** Error: parsing StateEvent message ("
-           << reader.getFormattedErrorMessages() << ")" << endl;
-    }
+    log(LOGERROR, "*** Error: parsing StateEvent message ("
+           + reader.getFormattedErrorMessages() + ")" );
     return;
   }
 
   if (event_name == "TetraUsers:info")
   {
-    if (debug >= LOGINFO)
-    {
-      cout << "Download userdata from Reflector (TetraUsers:info):" << endl;
-    }
+    log(LOGDEBUG, "Download userdata from Reflector (TetraUsers:info):");
     for (Json::Value::ArrayIndex i = 0; i != user_arr.size(); i++)
     {
       User m_user;
@@ -2071,12 +2043,9 @@ void TetraLogic::onPublishStateEvent(const string &event_name, const string &msg
       m_user.last_activity = t_userdata.get("last_activity","").asUInt();
 
       userdata[m_user.issi] = m_user;
-      if (debug >= LOGINFO)
-      {
-        cout << "tsi:" << m_user.issi << ",call=" << m_user.call << ",name="
-             << m_user.name << ",location=" << m_user.location
-             << ", comment=" << m_user.comment << endl;
-      }
+      log(LOGDEBUG, "Tsi:" + m_user.issi + ", call=" + m_user.call 
+          + ", name=" + m_user.name + ", location=" + m_user.location
+          + ", comment=" + m_user.comment);
     }
   }
 } /* TetraLogic::onPublishStateEvent */
@@ -2104,7 +2073,7 @@ int TetraLogic::queueSds(Sds t_sds)
 {
   last_sdsid++;
   t_sds.id = last_sdsid;  // last
-  t_sds.tos = time(NULL);
+  t_sds.tos = 0;
   sdsQueue.insert(pair<int, Sds>(last_sdsid, t_sds));
   new_sds = checkSds();
   return last_sdsid;
@@ -2121,6 +2090,8 @@ void TetraLogic::clearOldSds(void)
   {
     if (it->second.tos != 0 && difftime(it->second.tos, time(NULL)) > 3600)
     {
+      log(LOGTRACE, "TetraLogic::clearOldSds: " + it->second.tsi
+            + "->" + it->second.message);
       todelete.push_back(it->first);
     }
   }
@@ -2140,30 +2111,31 @@ bool TetraLogic::checkSds(void)
 
   clearOldSds();
 
-    // now check that the MTM is clean and not in tx state
-  if (peistate != OK || inTransmission || tetra_modem_sql->isOpen()) return true;
-
   // if message is sent -> get next available sds message
   if (pending_sds.tod != 0 || (pending_sds.tod == 0 && pending_sds.tos == 0))
   {
     // find the next SDS that was still not send
-    for (it = sdsQueue.begin(); it != sdsQueue.end(); it++)
+    for (it=sdsQueue.begin(); it!=sdsQueue.end(); it++)
     {
-      if (it->second.tos == 0 && it->second.direction == OUTGOING
-          && it->second.nroftries < maxtries)
+      if (it->second.tos == 0 && it->second.direction == OUTGOING 
+          && it->second.nroftries < MAX_TRIES)
       {
         pending_sds = it->second;
         break;
       }
     }
-    if (it == sdsQueue.end()) return retsds; // no pending SDS -> return
+    if (it == sdsQueue.end()) return retsds;
   }
 
-  if (cmgs_received && pending_sds.tos <= time(NULL))
+  // now check that the MTM is clean and not in tx state
+  if (peistate != OK || inTransmission || tetra_modem_sql->isOpen()) return true;
+
+  if (cmgs_received)
   {
-    if (pending_sds.nroftries++ > maxtries)
+    if (pending_sds.nroftries++ > MAX_TRIES)
     {
-      abortSds(); // give up to send current SDS
+      log(LOGERROR, "+++ sending of Sds message failed after " 
+           + to_string(MAX_TRIES) + " tries, giving up.");
     }
     else
     {
@@ -2178,12 +2150,10 @@ bool TetraLogic::checkSds(void)
       }
       pending_sds.tos = time(NULL);
 
-      if (debug >= LOGINFO)
-      {
-        cout << "+++ sending Sds (type=" << pending_sds.type << ") to "
-             << getISSI(pending_sds.tsi) << ": \"" << pending_sds.message
-             << "\", tries: " << pending_sds.nroftries << endl;
-      }
+      log(LOGINFO, "+++ sending Sds (type=" + to_string(pending_sds.type)
+             + ") to "
+             + getISSI(pending_sds.tsi) + ": \"" + pending_sds.message
+             + "\", tries: " + to_string(pending_sds.nroftries));
       sendPei(t_sds);
       cmgs_received = false;
       retsds = true;
@@ -2192,23 +2162,6 @@ bool TetraLogic::checkSds(void)
 
   return retsds;
 } /* TetraLogic::checkSds */
-
-
-void TetraLogic::abortSds(void)
-{
-  std::map<int, Sds>::iterator it;
-  pending_sds.tod = time(NULL);
-  for (it = sdsQueue.begin(); it != sdsQueue.end(); it++)
-  {
-    if (it->second.id == pending_sds.id)
-    {
-      it->second.nroftries = pending_sds.nroftries;
-      it->second.tod = time(NULL);
-      cout << "+++ sending of Sds message failed after " << maxtries
-               << " tries, giving up." << endl;
-    }
-  }
-} /* TetraLogic::abortSds */
 
 
 void TetraLogic::sendWelcomeSds(string tsi, short r4s)
@@ -2224,11 +2177,7 @@ void TetraLogic::sendWelcomeSds(string tsi, short r4s)
     t_sds.remark = "welcome sds";
     t_sds.message = oa->second;
 
-    if (debug >= LOGINFO)
-    {
-      cout << "Send SDS:" << getISSI(t_sds.tsi) << ", " <<
-             t_sds.message << endl;
-    }
+    log(LOGINFO, "Send SDS:" + getISSI(t_sds.tsi));
     queueSds(t_sds);
   }
 } /* TetraLogic::sendWelcomeSds */
@@ -2240,6 +2189,7 @@ void TetraLogic::sendWelcomeSds(string tsi, short r4s)
  */
 int TetraLogic::handleCci(std::string m_message)
 {
+  log(LOGTRACE, "TetraLogic::handleCci: " + m_message);
   squelchOpen(true);
   size_t f = m_message.find("+CTCC: ");
   if (f != string::npos)
@@ -2256,10 +2206,7 @@ void TetraLogic::sendAprs(string call, string aprsmessage)
   // send group info to aprs network
   if (LocationInfo::has_instance())
   {
-    if (debug >= LOGINFO)
-    {
-      cout << " To APRS:" << aprsmessage << endl;
-    }
+    log(LOGINFO, " To APRS:" + aprsmessage);
     LocationInfo::instance()->update3rdState(call, aprsmessage);
   }
 } /* TetraLogic::sendAprs */
@@ -2267,11 +2214,7 @@ void TetraLogic::sendAprs(string call, string aprsmessage)
 
 void TetraLogic::onDapnetMessage(string tsi, string message)
 {
-  if (debug >= LOGINFO)
-  {
-    cout << "+++ new Dapnet message received for " << tsi
-         << ":" << message << endl;
-  }
+  log(LOGINFO, "+++ new Dapnet message received for " + tsi + ":" + message);
 
   // put the new Sds int a queue...
   Sds t_sds;
@@ -2284,6 +2227,12 @@ void TetraLogic::onDapnetMessage(string tsi, string message)
 } /* TetraLogic::onDapnetMessage */
 
 
+void TetraLogic::onDapnetLogmessage(uint8_t type, std::string message)
+{
+  log(type, message);
+} /* TetraLogic::onDapnetLogmessage */
+
+
 bool TetraLogic::checkIfDapmessage(std::string message)
 {
   string destcall = "";
@@ -2294,17 +2243,22 @@ bool TetraLogic::checkIfDapmessage(std::string message)
       message.erase(0,4);
       destcall = message.substr(0, message.find(":"));
       message.erase(0, message.find(":")+1);
-      if (debug >= LOGDEBUG)
-      {
-        cout << "To DAPNET: call=" << destcall << ", message:" << message
-             << endl;
-      }
+      log(LOGDEBUG, "To DAPNET: call=" + destcall + ", message:" + message);
       dapnetclient->sendDapMessage(destcall, message);
       return true;
     }
   }
   return false;
 } /* TetraLogic::checkIfDapmessage */
+
+
+void TetraLogic::log(uint8_t logtype, std::string logmessage)
+{
+  if (debug >= logtype)
+  {
+    cout << logmessage << endl;
+  }
+} /* TetraLogic::log */
 
 /*
  * This file has not been truncated

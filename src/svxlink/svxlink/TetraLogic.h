@@ -257,7 +257,6 @@ class TetraLogic : public Logic
       int direction;        // INCOMING, OUTGOING
       int nroftries = 0;    // number of tries
       int aiservice;        // AI service / type of service
-      int state;            // state: SDS_SEND_OK, SDS_SEND_FAILED
     };
 
     Sds pending_sds;        // the Sds that will actually be handled
@@ -373,7 +372,6 @@ class TetraLogic : public Logic
     std::string infosds;
     bool is_tx;
     int last_sdsid;
-    int maxtries;
 
     void initPei(void);
     void onCharactersReceived(char *buf, int count);
@@ -408,7 +406,6 @@ class TetraLogic : public Logic
     void firstContact(Sds tsds);
     bool checkSds(void);
     void clearOldSds(void);
-    void abortSds(void);
     void getAiMode(std::string opmode);
     bool rmatch(std::string tok, std::string pattern);
     void sendUserInfo(void);
@@ -417,9 +414,11 @@ class TetraLogic : public Logic
     void onPublishStateEvent(const std::string &event_name, const std::string &msg);
     void publishInfo(std::string type, Json::Value event);
     void onDapnetMessage(std::string, std::string message);
+    void onDapnetLogmessage(uint8_t type, std::string message);
     void sendAprs(std::string call, std::string aprsmessage);
     bool checkIfDapmessage(std::string message);
     std::string joinList(std::list<std::string> members);
+    void log(uint8_t type, std::string logmessage);
 
 };  /* class TetraLogic */
 
