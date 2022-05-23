@@ -233,6 +233,7 @@ class LocationInfo
     Async::Timer        *beacon_timer;
     Async::Timer        *offset_timer;
     Position pos;
+    uint8_t check;
 
     bool parsePosition(const Async::Config &cfg, const std::string &name);
     bool parseLatitude(Coordinate &pos, const std::string &value);
@@ -254,6 +255,7 @@ class LocationInfo
     std::string getNextStr(std::string& h);
     void beacontimer(const Async::Config &cfg, const std::string &name);
     float calcDistance(float lat1, float lon1, float lat2, float lon2);
+    float calcAngle(float lat1, float lon1, float lat2, float lon2);
     bool initNmeaDev(const Async::Config &cfg, const std::string &name);
     bool rmatch(std::string tok, std::string pattern);
     bool initGpsdClient(const Async::Config &cfg, const std::string &name);

@@ -802,9 +802,9 @@ void LocationInfo::checkPosition(void)
 {
   if (stored_lat == 0.0) stored_lat = pos.lat;
   if (stored_lon == 0.0) stored_lon = pos.lon;
-
   float dist = calcDistance(pos.lat, pos.lon, stored_lat, stored_lon);
-  if (dist > 0.5)
+  float angle = calcAngle(pos.lat, pos.lon, stored_lat, stored_lon);
+  if (dist > 0.5 || angle >= 12.5)
   {
     sendAprsPosition();
   }
@@ -864,6 +864,14 @@ float LocationInfo::calcDistance(float lat1, float lon1, float lat2, float lon2)
   double angle = 2 * atan2(sqrt(a), sqrt(1 - a));
   return static_cast<float>(static_cast<int>(angle * RADIUS * 100.))/100.;
 } /* LocationInfo::calcDistance */
+
+
+float LocationInfo::calcAngle(float lat1, float lon1, float lat2, float lon2)
+{
+  double x = cos(lat2) * sin(abs(lon1 - lon2));
+  double y = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(abs(lon1 - lon2));
+  return atan2(x, y);
+} /* LocationInfo::calcAngle */
 
 
 std::string LocationInfo::getNextStr(std::string& h)
