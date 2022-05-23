@@ -1,3 +1,5 @@
+The branch "hotspot-nmea" supports a Gps-USB-Stick with output of positioning data over a ttyUSBx-device as well as a Tcp connection to a gpsd.
+
 SvxLink
 =======
 
