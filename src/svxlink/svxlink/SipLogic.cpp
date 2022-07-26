@@ -89,7 +89,7 @@ using namespace pj;
  *
  ****************************************************************************/
 #define DEFAULT_SIPLIMITER_THRESH  -1.0
-#define PJSIP_VERSION "03062022"
+#define PJSIP_VERSION "26072022"
 
 
 /****************************************************************************
@@ -1037,6 +1037,8 @@ pj_status_t SipLogic::mediaPortGetFrame(pjmedia_port *port, pjmedia_frame *frame
     }
   }
 
+  free(smpl);
+
   /*
     The pjsip framework requests 768 samples on every call. The SvxLink
     framework can only deliver samples if the sql isn't closed and
@@ -1074,6 +1076,7 @@ pj_status_t SipLogic::mediaPortPutFrame(pjmedia_port *port, pjmedia_frame *frame
       int ret = m_out_src->writeSamples(smpl + pos, count - pos);
       pos += ret;
     } while (pos < count);
+    free(smpl);
   }
 
   return PJ_SUCCESS;
