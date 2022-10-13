@@ -174,6 +174,9 @@ class TetraLogic::Call
  *
  ****************************************************************************/
 
+extern "C" {
+  LogicBase* construct(void) { return new TetraLogic; }
+}
 
 
 /****************************************************************************
@@ -191,8 +194,8 @@ class TetraLogic::Call
  ****************************************************************************/
 
 
-TetraLogic::TetraLogic(Async::Config& cfg, const string& name)
-  : Logic(cfg, name), mute_rx_on_tx(true), mute_tx_on_rx(true),
+TetraLogic::TetraLogic(void)
+  : mute_rx_on_tx(true), mute_tx_on_rx(true),
   rgr_sound_always(false), mcc(""), mnc(""), issi(""), gssi(1),
   port("/dev/ttyUSB0"), baudrate(115200), initstr(""), pei(0), sds_pty(0),
   peistream(""), debug(LOGERROR), talkgroup_up(false), sds_when_dmo_on(false),
@@ -213,33 +216,10 @@ TetraLogic::TetraLogic(Async::Config& cfg, const string& name)
 } /* TetraLogic::TetraLogic */
 
 
-TetraLogic::~TetraLogic(void)
-{
-  if (endCmd.length()>0)
-  {
-    sendPei(endCmd);
-  }
-  if (LinkManager::hasInstance())
-  {
-    LinkManager::instance()->deleteLogic(this);
-  }
-  delete dapnetclient;
-  dapnetclient = 0;
-  peiComTimer = 0;
-  peiActivityTimer = 0;
-  peiBreakCommandTimer = 0;
-  //delete call;
-  delete pei;
-  pei = 0;
-  delete sds_pty;
-  sds_pty = 0;
-} /* TetraLogic::~TetraLogic */
-
-
-bool TetraLogic::initialize(void)
+bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name)
 {
   bool isok = true;
-  if (!Logic::initialize())
+  if (!Logic::initialize(cfgobj, logic_name))
   {
     isok = false;
   }

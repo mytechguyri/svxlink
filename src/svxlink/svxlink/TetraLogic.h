@@ -126,19 +126,15 @@ class TetraLogic : public Logic
      * @param 	cfg A previously opened configuration
      * @param 	name The configuration section name of this logic
      */
-    TetraLogic(Async::Config &cfg, const std::string &name);
-
-    /**
-     * @brief 	Destructor
-     */
-    ~TetraLogic(void);
+    TetraLogic(void);
 
     /**
      * @brief 	Initialize the Tetra logic core
      * @return	Returns \em true if the initialization was successful or else
      *	      	\em false is returned.
      */
-    bool initialize(void);
+    virtual bool initialize(Async::Config& cfgobj,
+                            const std::string& logic_name) override;
 
     /**
      * @brief   is called up when a command from an other logic has been received
@@ -147,6 +143,7 @@ class TetraLogic : public Logic
                                    const std::string& cmd);
 
   protected:
+    virtual ~TetraLogic(void) override  {};
     virtual void audioStreamStateChange(bool is_active, bool is_idle);
     virtual void squelchOpen(bool is_open);
     virtual void transmitterStateChange(bool is_transmitting);
