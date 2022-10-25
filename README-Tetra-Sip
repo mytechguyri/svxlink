@@ -1,33 +1,98 @@
-Steps to enable Sip dial-out by sending a Tetra state-SDS:
+*********************************************************************************************************
+*
+* Adi Bier / DL1HRC
+* dl1hrc { at } gmx . de
+*
+* Instructions for the branch tetra-sip
+*
+* [Tetra-MTM5400] <-> Tetra-Logic <-> SvxLink <-> SipLogic <-> [FRITZ!Box||Asterisk]
+*                                        |
+*                                 ReflectorLogic <-> SvxReflector
+*
+*********************************************************************************************************
 
-Look for "SipDialOfromTetra.tcl", configure it to your needs and store it under
-/usr/share/svxlink/ebents.d/local
+This branch only works if you have the following things:
 
-Be sure that you have the valid sipctrl path configured, it must fit to the param
-SIP_CTRL_PTY parameter in your svxlink.conf (section [SipLogic]), e.g.
+- Motorola MTM5x00, MTM800E, MTM800FuG
+- active data cable, e.g. PMKN4104
+- (Sepura/Cleartone my work, but no warranty)
+- pjSip-lib in version >= 2.10
 
-[SipLogic]
-SIP_CTRL_PTY=/tmp/sipctrl
+The MS is completely controlled by AT-commands over the PEI interface
 
-In the file "SipDialOfromTetra.tcl" configure the line:
+Installation instructions for the tetra-contrib branch from Frédéric/F1IWQ 
+can be found here:
+https://raw.githubusercontent.com/f1iwq2/Tetra_Link_boardIWQ/main/Doc/Download%20svxlink-tetra.pdf
 
-    set port [open "/tmp/sipctrl" w+];
+A German pdf with install instructions and a more detailed description of the 
+different branches is available here:
+https://github.com/dl1hrc/documentation
 
+Here are two quick-and-dirty installation/update documentation, keep 
+in mind: No configuration will be done!
 
-For TetraLogic you have to configure the section [SdsToCommand] like this
+1.1) first time installation (including German(!) voice announcements):
 
-[SdsToCommand]
-32768=26200553#
-32769=555121212#
+You may use my semi-automatic installation-script from here 
+http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-sip.sh
 
-Define state SDS's in your codeplug of your mobile station, e.g. "Adi DMR+SIP : 32768"
+Start installation as root:
+wget -O - http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-sip.sh | bash
 
-A state SDS 32768 sent to the MTM is initiating a sip call to 26200553, a state sds to
-32769 dial out to 555121212 and so on.
+1.2) Update an existing tetra-sip installation made by the previous script 
+Here are quick-and-dirty installation/update documentation, keep 
+in mind: No configuration will be done!
 
+2) Update an existing tetra-sip installation made by the previous script:
 
-With the next updates the configuration will be much easier, I promise ;)
+systemctl stop svxlink
+cd /home/svxlink/svxlink/src/build/
+git pull
+make install
+systemctl start svxlink
 
-Send questions to dl1hrc {at} . de
+3) Or installation by hand
 
-mni 73s de Adi / DL1HRC + DN6THW
+sudo apt update
+sudo apt install gcc g++ wget make cmake libgcrypt-dev libgsm1-dev libsigc++-\
+2.0-dev tcl-dev git libspeex-dev libasound2-dev libpopt-dev libssl-dev libopus-\
+dev groff libcurl4-openssl-dev libjsoncpp-dev gpiod libgpiod-dev libusb-1.0.0-dev \
+alsa-base alsa-utils
+
+groupadd svxlink
+useradd -g svxlink -G svxlink -c "SvxLink Admin" svxlink
+
+# Install the pjSip framework in version 2.12.1.
+
+wget https://github.com/pjsip/pjproject/archive/refs/tags/2.12.1.tar.gz
+tar -xzvf 2.12.tar.gz
+cd project-2.12.1
+./configure --disable-libwebrtc --disable-video
+make dep
+make
+sudo make install
+
+# Clone the svxlink branch tetra-sip
+git clone http://github.com/dl1hrc/svxlink.git
+cd svxlink
+git checkout tetra-sip
+cd svxlink/src
+mkdir build
+cd build
+cmake -DUSE_QT=OFF -DCMAKE_INSTALL_PREFIX=/usr -DSYSCONF_INSTALL_DIR=/etc -\
+DLOCAL_STATE_DIR=/var -DCMAKE_BUILD_TYPE=Release -DWITH_CONTRIB_TETRA_LOGIC=ON \
+-DWITH_CONTRIB_SIP_LOGIC=ON ..
+make
+sudo make install
+sudo ldconfig
+
+The basic installation should be done now sucessfully. Continue with the installation
+of sounds and the configuration of the parameters in svxlink.conf. You should try
+to connect your MTMxxxx by using the minicom to see that the communication between
+Raspi/pc and MTM is ok. It makes no sense to continue if you can't connect the
+MTM or it doesn't present valid AT answers.
+
+Please report problems over the groups.io mailing list. tnks
+
+Mni Adi Bier / DL1HRC
+dl1hrc { at } gmx . de

@@ -135,7 +135,7 @@ class TetraLogic : public Logic
      */
     virtual bool initialize(Async::Config& cfgobj,
                             const std::string& logic_name) override;
-
+    
     /**
      * @brief   is called up when a command from an other logic has been received
      */

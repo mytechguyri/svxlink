@@ -6,7 +6,7 @@
 
 \verbatim
 SvxLink - A Multi Purpose Voice Services System for Ham Radio Use
-Copyright (C) 2003-2021 Tobias Blomberg / SM0SVX
+Copyright (C) 2003-2023 Tobias Blomberg / SM0SVX
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -131,7 +131,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "10102022"
+#define TETRA_LOGIC_VERSION "25102022"
 
 /****************************************************************************
  *
@@ -729,7 +729,7 @@ void TetraLogic::squelchOpen(bool is_open)
   // should be allowed. Commenting out the statements below.
   std::string s = (is_open ? "true" : "false");
   log(LOGTRACE, "TetraLogic::squelchOpen: squelchopen=" + s);
-
+  
   if (tx().isTransmitting())
   {
     log(LOGTRACE, "TetraLogic::squelchOpen: tx().isTransmitting()=true");

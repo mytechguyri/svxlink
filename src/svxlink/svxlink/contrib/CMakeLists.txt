@@ -14,3 +14,5 @@ endmacro(add_contrib)
 
 add_contrib(SIP_LOGIC SipLogic
   "Set to ON to build and install contributed logic core SipLogic")
+add_contrib(TETRA_LOGIC TetraLogic
+  "Set to ON to build and install contributed logic core TetraLogic")
