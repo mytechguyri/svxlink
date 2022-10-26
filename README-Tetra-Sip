@@ -22,7 +22,7 @@ The MS is completely controlled by AT-commands over the PEI interface
 
 Installation instructions for the tetra-contrib branch from Frédéric/F1IWQ 
 can be found here:
-https://raw.githubusercontent.com/f1iwq2/Tetra_Link_boardIWQ/main/Doc/Download%20svxlink-tetra.pdf
+https://github.com/f1iwq2/Tetra_Link_boardIWQ/blob/main/Doc/Download%20svxlink-tetra.pdf
 
 A German pdf with install instructions and a more detailed description of the 
 different branches is available here:
