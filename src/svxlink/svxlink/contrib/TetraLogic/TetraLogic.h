@@ -229,6 +229,8 @@ class TetraLogic : public Logic
      // contain user data
     struct User {
       std::string issi;
+      std::string idtype = "tsi";
+      std::string mode = "TETRA";
       std::string call;
       std::string name;
       std::string comment;
@@ -269,7 +271,7 @@ class TetraLogic : public Logic
 
     // AI Service
     // This parameter is used to determine the type of service to be used
-    // in air interface call set up signalling. The services are all
+    // in air interface call set up signaling. The services are all
     // defined in EN 300 392-2 [3] or EN 300 396-3 [25].
     typedef enum
     {
@@ -319,7 +321,6 @@ class TetraLogic : public Logic
     char t_aprs_tab;
     float proximity_warning;
     int time_between_sds;
-//    SquelchTetra* tetra_modem_sql;
     float own_lat;
     float own_lon;
     std::string endCmd;
@@ -329,6 +330,7 @@ class TetraLogic : public Logic
     bool cmgs_received;
     bool share_userinfo;
     Json::Value m_user_info;
+    Json::Value m_pei_init;
     int current_cci;
     int dmnc;
     int dmcc;

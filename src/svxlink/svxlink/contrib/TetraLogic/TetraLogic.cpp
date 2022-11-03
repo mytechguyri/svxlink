@@ -131,7 +131,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "25102022"
+#define TETRA_LOGIC_VERSION "02112022"
 
 /****************************************************************************
  *
@@ -197,10 +197,10 @@ extern "C" {
 TetraLogic::TetraLogic(void)
   : mute_rx_on_tx(true), mute_tx_on_rx(true),
   rgr_sound_always(false), mcc(""), mnc(""), issi(""), gssi(1),
-  port("/dev/ttyUSB0"), baudrate(115200), initstr(""), pei(0), sds_pty(0),
-  peistream(""), debug(LOGERROR), talkgroup_up(false), sds_when_dmo_on(false),
-  sds_when_dmo_off(false), sds_when_proximity(false),
-  peiComTimer(2000, Timer::TYPE_ONESHOT, false),
+  port("/dev/ttyUSB0"), baudrate(115200), initstr("AT+CTOM=1;AT+CTSP=1,3,131"),
+  pei(0), sds_pty(0), peistream(""), debug(LOGERROR), talkgroup_up(false),
+  sds_when_dmo_on(false), sds_when_dmo_off(false),
+  sds_when_proximity(false), peiComTimer(2000, Timer::TYPE_ONESHOT, false),
   peiActivityTimer(10000, Timer::TYPE_ONESHOT, true),
   peiBreakCommandTimer(3000, Timer::TYPE_ONESHOT, false),
   proximity_warning(3.1), time_between_sds(3600), own_lat(0.0),
@@ -318,7 +318,7 @@ bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name
       t_aprs_tab = value[1];
     }
   }
-
+  
   // the pty path: inject messages to send by Sds
   string sds_pty_path;
   cfg().getValue(name(), "SDS_PTY", sds_pty_path);
@@ -347,7 +347,7 @@ bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name
       << "* removed soon. Use TETRA_USER_INFOFILE=tetra_users.json in-  *\n"
       << "* stead and transfer your tetra user data into the json file. *\n"
       << "* You will find an example of tetra_users.json in             *\n"
-      << "* src/svxlink/svxlink directory                               *\n"
+      << "* /src/svxlink/svxlink.d directory                            *\n"
       << "***************************************************************\n";
     list<string> user_list = cfg().listSection(user_section);
     User m_user;
@@ -435,7 +435,9 @@ bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name
         isok = false;
       }
       m_user.name = t_userdata.get("name","").asString();
+      m_user.mode = t_userdata.get("mode","TETRA").asString();
       m_user.call = t_userdata.get("call","").asString();
+      m_user.idtype = t_userdata.get("idtype","tsi").asString();
       m_user.location = t_userdata.get("location","").asString();
       if (t_userdata.get("symbol","").asString().length() != 2)
       {
@@ -458,6 +460,80 @@ bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name
              + ", name=" + m_user.name + ", location=" + m_user.location
              + ", comment=" + m_user.comment);
     }
+  }
+
+    // the init-pei file where init AT commands are defined
+  std::string pei_init_file;
+  if (cfg().getValue(name(), "PEI_INIT_FILE", pei_init_file))
+  {
+    std::ifstream pei_init_is(pei_init_file.c_str(), std::ios::in);
+    if (pei_init_is.good())
+    {
+      try
+      {
+        if (!(pei_init_is >> m_pei_init))
+        {
+          std::cerr << "*** ERROR: Failure while reading pei-init information file "
+                       "\"" << pei_init_file << "\""
+                    << std::endl;
+          isok = false;
+        }
+      }
+      catch (const Json::Exception& e)
+      {
+        std::cerr << "*** ERROR: Failure while reading pei-init information "
+                     "file \"" << pei_init_file << "\": "
+                  << e.what()
+                  << std::endl;
+        isok = false;
+      }
+    }
+    else
+    {
+      std::cerr << "*** ERROR: Could not open pei-init information file "
+                   "\"" << pei_init_file << "\""
+                << std::endl;
+      isok = false;
+    }
+
+     // valid: TMO, DMO-MS, DMO-REPEATER, GATEWAY
+    std::string tetra_mode = "DMO-MS";
+    cfg().getValue(name(), "TETRA_MODE", tetra_mode);
+
+    for (Json::Value::ArrayIndex i = 0; i < m_pei_init.size(); i++)
+    {
+      Json::Value& t_peiinit = m_pei_init[i];
+      if (tetra_mode == t_peiinit.get("mode","").asString())
+      {
+        Json::Value& t_a = t_peiinit["commands"];
+        log(LOGDEBUG, 
+        "+++ Reading AT-commands to initialze PEI-device. Reading from file" +
+        pei_init_file + "\"");
+        for (Json::Value::ArrayIndex j = 0; j < t_a.size(); j++)
+        {
+          m_cmds.push_back(t_a[j].asString());
+          log(LOGDEBUG, "    " + t_a[j].asString());
+        }
+      }
+    }
+  }
+    // initializes the Pei device by parameter INIT_PEI in svxlink.conf
+  else if (cfg().getValue(name(), "INIT_PEI", initstr))
+  {
+    SvxLink::splitStr(initcmds, initstr, ";");
+    m_cmds = initcmds;
+    cout << "+++ WARNING: INIT_PEI is outdated and is being ignored " <<
+      "in further versions of tetra-contrib. Please change your " <<
+      "configuration and use the pei-init.json to define AT " <<
+      "initializing commands. Please also read the manual page." << endl;
+    log(LOGDEBUG, 
+      "+++ Reading AT commands by using the parameter svxlink.conf/INIT_PEI=");
+  }
+  else
+  {
+    cout << "+++ WARNING: No PEI initializing sequence defined, you " << 
+      "should configure the parameter PEI_INIT_FILE in your TetraLogic.conf " <<
+      "in svxlink.d directory. Please also read the manual page." << endl;
   }
 
   // define sds messages send to user when received Sds's from him due to
@@ -578,15 +654,6 @@ bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name
   {
     time_between_sds = atoi(value.c_str());  
   }
-
-  // init the Pei device
-  if (!cfg().getValue(name(), "INIT_PEI", initstr))
-  {
-    log(LOGWARN, "Warning: Missing parameter " + name()
-         + "/INIT_PEI, using defaults");
-  }
-  SvxLink::splitStr(initcmds, initstr, ";");
-  m_cmds = initcmds;
 
   cfg().getValue(name(), "END_CMD", endCmd);
 
@@ -820,8 +887,10 @@ void TetraLogic::sendUserInfo(void)
        iu!=userdata.end(); iu++)
   {
     Json::Value t_userinfo(Json::objectValue);
-    t_userinfo["tsi"] = iu->second.issi;
+    t_userinfo["id"] = iu->second.issi;
     t_userinfo["call"] = iu->second.call;
+    t_userinfo["idtype"] = iu->second.idtype;
+    t_userinfo["mode"] = iu->second.mode;
     t_userinfo["name"] = iu->second.name;
     t_userinfo["tab"] = iu->second.aprs_tab;
     t_userinfo["sym"] = iu->second.aprs_sym;
@@ -830,7 +899,7 @@ void TetraLogic::sendUserInfo(void)
     t_userinfo["last_activity"] = 0;
     event.append(t_userinfo);
   }
-  publishInfo("TetraUsers:info", event);
+  publishInfo("DvUsers:info", event);
 } /* TetraLogic::sendUserInfo */
 
 
@@ -1167,6 +1236,8 @@ void TetraLogic::firstContact(Sds tsds)
 {
   userdata[tsds.tsi].call = "NoCall";
   userdata[tsds.tsi].name = "NoName";
+  userdata[tsds.tsi].idtype = "tsi";
+  userdata[tsds.tsi].mode = "TETRA";
   userdata[tsds.tsi].aprs_sym = t_aprs_sym;
   userdata[tsds.tsi].aprs_tab = t_aprs_tab;
   userdata[tsds.tsi].last_activity = time(NULL);
@@ -1991,14 +2062,16 @@ void TetraLogic::onPublishStateEvent(const string &event_name, const string &msg
     return;
   }
 
-  if (event_name == "TetraUsers:info")
+  if (event_name == "DvUsers:info")
   {
-    log(LOGDEBUG, "Download userdata from Reflector (TetraUsers:info):");
+    log(LOGDEBUG, "Download userdata from Reflector (DvUsers:info):");
     for (Json::Value::ArrayIndex i = 0; i != user_arr.size(); i++)
     {
       User m_user;
       Json::Value& t_userdata = user_arr[i];
-      m_user.issi = t_userdata.get("tsi", "").asString();
+      m_user.issi = t_userdata.get("id", "").asString();
+      m_user.idtype = t_userdata.get("idtype", "").asString();
+      m_user.mode = t_userdata.get("mode", "").asString();
       m_user.name = t_userdata.get("name","").asString();
       m_user.call = t_userdata.get("call","").asString();
       m_user.location = t_userdata.get("location","").asString();

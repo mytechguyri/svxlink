@@ -2,7 +2,7 @@
 * Adi Bier / DL1HRC
 * dl1hrc { at } gmx . de
 *
-* version 25102022
+* version 021102022
 *
 
 This branch only works if you have the following things:
@@ -14,8 +14,7 @@ This branch only works if you have the following things:
 The MS is completely controlled by AT-commands over the PEI interface
 
 Installation instructions from Frédéric/F1IWQ can be found here:
-http://dl.free.fr/getfile.pl?file=/RabtkiOU
-
+https://github.com/f1iwq2/Tetra_Link_boardIWQ/blob/main/Doc/Download%20svxlink-tetra.pdf
 
 Here are quick-and-dirty installation/update documentation, keep 
 in mind: No configuration will be done!
@@ -34,8 +33,10 @@ cd svxlink/src
 git checkout tetra-contrib
 mkdir build
 cd build
-cmake -DUSE_QT=OFF -DCMAKE_INSTALL_PREFIX=/usr -DSYSCONF_INSTALL_DIR=/etc -DLOCAL_STATE_DIR=/var -DCMAKE_BUILD_TYPE=Release -DWITH_CONTRIB_TETRA_LOGIC=ON  ..
+cmake -DUSE_QT=OFF -DCMAKE_INSTALL_PREFIX=/usr -DSYSCONF_INSTALL_DIR=/etc -DLOCAL_STATE_DIR=/var -DCMAKE_BUILD_TYPE=Release -DWITH_CONTRIB_TETRA_LOGIC=ON ..
 make
+# on weak systems make should be used with the "-j4 -l2" options: make -j4 -l2
+# tnx to Daniel/SP0DZ
 sudo make install
 
 Please not that the cmake-parameter "-DWITH_CONTRIB_TETRA_LOGIC=ON" enables the
@@ -46,6 +47,7 @@ TetraLogic extension. Without this it will not work.
 
 systemctl stop svxlink
 cd /home/svxlink/svxlink/src/build/
+make clean
 git pull
 sudo make install
 sudo systemctl restart svxlink
