@@ -1,0 +1,125 @@
+*
+* Adi Bier / DL1HRC
+* dl1hrc { at } gmx . de
+*
+* version 031102022 of tetra-sip
+*
+
+This branch only works if you have the following things:
+
+- Motorola MTM5x00, MTM800E, MTM800FuG
+- active data cable, e.g. PMKN4104
+- (Sepura/Cleartone my work, but no warranty)
+- you have pjsip installed before (from here https://www.pjsip.org/download.htm)
+
+The MS is completely controlled by AT-commands over the PEI interface
+
+Here are quick-and-dirty installation/update documentation, keep 
+in mind: No configuration will be done!
+
+1) first time installation (including German(!) voice announcements):
+
+You may use my semi-automatic installation-script from here 
+http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-sip.sh
+
+Start installation as root:
+wget -O - http://svxlink.ham-radio-op.net/svxlink/svxlink-tetra-contrib.sh | bash
+
+2) alternatively do this:
+cd $HOME
+wget https://github.com/pjsip/pjproject/archive/refs/tags/2.12.1.tar.gz
+tar -zxvf 2.12.1.tar.gz
+cd pjproject-2.12.1
+./configure --disable-libwebrtc --disable-video
+make dep
+make
+sudo make install
+
+# Then continue with the SvxLink part. Be sure that the installation before was 
+# done successfully
+
+cd $HOME
+git clone https://github.com/dl1hrc/svxlink.git
+cd svxlink/src
+git checkout tetra-sip
+mkdir build
+cd build
+cmake -DUSE_QT=OFF -DCMAKE_INSTALL_PREFIX=/usr -DSYSCONF_INSTALL_DIR=/etc -DLOCAL_STATE_DIR=/var -DCMAKE_BUILD_TYPE=Release -DWITH_CONTRIB_TETRA_LOGIC=ON -DWITH_CONTRIB_SIP_LOGIC=ON ..
+make
+# on weak systems make should be used with the "-j4 -l2" options: make -j4 -l2
+# tnx to Daniel/SP0DZ
+sudo make install
+
+On x86_64 systems your probably encounter this problem:
+...
+[ 87%] Linking CXX shared module ../../../../lib/SipLogic.so
+/usr/bin/ld: /usr/local/lib/libpjsua2-x86_64-unknown-linux-gnu.a(account.o): relocation R_X86_64_PC32 against symbol `_ZTVN2pj7AccountE' can not be used when making a shared object; recompile with -fPIC
+/usr/bin/ld: final link failed: bad value
+collect2: error: ld returned 1 exit status
+make[2]: *** [svxlink/svxlink/contrib/SipLogic/CMakeFiles/SipLogic.dir/build.make:84: lib/SipLogic.so] Fehler 1
+make[1]: *** [CMakeFiles/Makefile2:2792: svxlink/svxlink/contrib/SipLogic/CMakeFiles/SipLogic.dir/all] Fehler 2
+make: *** [Makefile:152: all] Fehler 2
+
+In this case you have to recompile the pjsip project again with the CXXFLAGS parameter -fPIC
+If you have problems with that send me an email.
+
+Please note that the cmake-parameter "-DWITH_CONTRIB_TETRA_LOGIC=ON" enables the
+TetraLogic extension and "-DWITH_CONTRIB_SIP_LOGIC=ON" the Sip related part.
+Without this it will not work!
+
+
+3) Update an existing tetra-sip installation made by the previous script:
+
+systemctl stop svxlink
+cd /home/svxlink/svxlink/src/build/
+make clean
+git pull
+sudo make install
+sudo systemctl restart svxlink
+
+The new configuration file TetraLogic.conf contains the [TetraLogic]-section
+from svxlink.conf. This file is now located in /etc/svxlink/svxlink.d directory.
+Remove the [TetraLogic]-section from svxlink.conf but let the LOGICS- and LINKS
+definitions with "Tetra" untouched.
+
+The new configuration file SipLogic.conf contains the [SipLogic]-section
+from svxlink.conf. This file is now located in /etc/svxlink/svxlink.d directory.
+Remove the [SipLogic]-section from svxlink.conf but let the LOGICS- and LINKS
+definitions with "Sip" untouched.
+
+
+4) further information about Sip control
+
+Steps to enable Sip dial-out by sending a Tetra state-SDS:
+
+Look for "SipDialOfromTetra.tcl", configure it to your needs and store it under
+/usr/share/svxlink/ebents.d/local
+
+Be sure that you have the valid sipctrl path configured, it must fit to the param
+SIP_CTRL_PTY parameter in your svxlink.conf (section [SipLogic]), e.g.
+
+[SipLogic]
+SIP_CTRL_PTY=/tmp/sipctrl
+
+In the file "SipDialOfromTetra.tcl" configure the line:
+
+    set port [open "/tmp/sipctrl" w+];
+
+
+For TetraLogic you have to configure the section [SdsToCommand] like this
+
+[SdsToCommand]
+32768=26200553#
+32769=555121212#
+
+Define state SDS's in your codeplug of your mobile station, e.g. "Adi DMR+SIP : 32768"
+
+A state SDS 32768 sent to the MTM is initiating a sip call to 26200553, a state sds to
+32769 dial out to 555121212 and so on.
+
+
+With the next updates the configuration will be much easier, I promise ;)
+
+Send questions to dl1hrc {at} . de
+
+mni 73s de Adi / DL1HRC + DN6THW
