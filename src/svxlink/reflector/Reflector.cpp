@@ -249,7 +249,6 @@ bool Reflector::initialize(Async::Config &cfg)
   {
     cout << "*** Can not read user data from json file: " << cfg_filename << endl;
   }
-  
   return true;
 } /* Reflector::initialize */
 
@@ -262,6 +261,7 @@ void Reflector::updateUserdata(Json::Value user_arr)
     Json::Value& t_userdata = user_arr[i];
     m_user.id = t_userdata.get("id", "").asString();
     m_user.name = t_userdata.get("name","").asString();
+    m_user.idtype = t_userdata.get("idtype","").asString();
     m_user.mode = t_userdata.get("mode","").asString();
     m_user.call = t_userdata.get("call","").asString();
     m_user.location = t_userdata.get("location","").asString();
@@ -279,6 +279,7 @@ void Reflector::updateUserdata(Json::Value user_arr)
     {
       iu->second.name= m_user.name;
       iu->second.mode= m_user.mode;
+      iu->second.idtype= m_user.idtype;
       iu->second.aprs_sym = m_user.aprs_sym;
       iu->second.aprs_tab = m_user.aprs_tab;
       iu->second.comment = m_user.comment;
@@ -308,6 +309,12 @@ void Reflector::updateUserdata(Json::Value user_arr)
   }
   writeUserData(userdata);
 } /* Reflector::updateUserdata */
+
+
+void Reflector::updateSdsdata(Json::Value eventmessage)
+{
+  cout << jsonToString(eventmessage) << endl;
+} /* Reflector::updateSdsdata */
 
 
 void Reflector::updateQsostate(Json::Value eventmessage)
@@ -907,6 +914,7 @@ bool Reflector::getUserData(void)
     Json::Value& t_userdata = cfg_root[i];
     m_user.id = t_userdata.get("id", "").asString();
     m_user.mode = t_userdata.get("mode","").asString();
+    m_user.idtype = t_userdata.get("idtype","").asString();
     m_user.name = t_userdata.get("name","").asString();
     m_user.call = t_userdata.get("call","").asString();
     m_user.location = t_userdata.get("location","").asString();
@@ -934,6 +942,7 @@ void Reflector::writeUserData(std::map<std::string, User> userdata)
     t_userinfo["id"] = iu->second.id;
     t_userinfo["call"] = iu->second.call;
     t_userinfo["mode"] = iu->second.mode;
+    t_userinfo["idtype"] = iu->second.idtype;
     t_userinfo["name"] = iu->second.name;
     t_userinfo["location"] = iu->second.location;
     t_userinfo["sym"] = iu->second.aprs_sym;
@@ -956,7 +965,6 @@ void Reflector::writeUserData(std::map<std::string, User> userdata)
   // send user info to client nodes
   broadcastMsg(MsgStateEvent("Reflector","DvUsers:info", 
                 os.str()), v1_client_filter);
-  cout << jsonToString(event) << endl;
 } /* Reflector::writeUserData */
 
 

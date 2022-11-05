@@ -180,6 +180,7 @@ ReflectorClient::ReflectorClient(Reflector *ref, Async::FramedTcpConnection *con
     }
     m_supported_codecs.push_back(codec);
   }
+
 } /* ReflectorClient::ReflectorClient */
 
 

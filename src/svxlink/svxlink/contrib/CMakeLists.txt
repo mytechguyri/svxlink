@@ -14,3 +14,6 @@ endmacro(add_contrib)
 
 add_contrib(USRP_LOGIC UsrpLogic
   "Set to ON to build and install contributed logic core UsrpLogic")
+add_contrib(TETRA_LOGIC TetraLogic
+  "Set to ON to build and install contributed logic core TetraLogic")
+
