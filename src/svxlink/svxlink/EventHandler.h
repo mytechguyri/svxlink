@@ -265,14 +265,6 @@ class EventHandler : public sigc::trackable
     sigc::signal<void, const std::string&, const std::string&,
                  const std::string&> setConfigValue;
 
-    /**
-     * @brief   A signal that is emitted when the TCL script want to call
-     *          a sip user
-     * @param   The phone number of the user
-     */
-    sigc::signal<void, const std::string&> initCall;
-    
-
   protected:
 
   private:
@@ -299,8 +291,6 @@ class EventHandler : public sigc::trackable
     static int setConfigValueHandler(ClientData cdata, Tcl_Interp *irp,
                     int argc, const char *argv[]);
     static int genericCommandHandler(ClientData cdata, Tcl_Interp *irp,
-                    int argc, const char *argv[]);
-    static int initCallHandler(ClientData cdata, Tcl_Interp *irp,
                     int argc, const char *argv[]);
 };  /* class EventHandler */
 

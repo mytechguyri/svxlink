@@ -61,14 +61,12 @@ include_directories(
 # since that remove asserts.
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_C_FLAGS
-    "${CMAKE_C_FLAGS} -Wall -Wstrict-prototypes -Wpointer-arith")
-  set(CMAKE_C_FLAGS_DEBUG "-O0 -fPIC")
+    "${CMAKE_C_FLAGS} -Wall -Wstrict-prototypes -Wpointer-arith -fPIC")
   set(CMAKE_C_FLAGS_RELEASE "-O3 -fPIC")
   set(CMAKE_C_FLAGS_RELWITHDEBINFO "-O2 -g")
 
   set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} -Wall -Wpointer-arith -fPIC")
-  set(CMAKE_CXX_FLAGS_RELEASE "-O0 -fPIC")
   set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fPIC")
   set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
 

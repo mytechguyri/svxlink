@@ -12,7 +12,7 @@ Contrib: SipLogic
 SipLogic.conf is a sample configuration for a SipLogic connected to a Fritzbox
 by AVM. Remember that a Fritzbox requires a sip login and password with
 at least 8 characters that must be different eachother. The configuration of the
-Sip part has been moved to this new file, normally found in /etc/svxlink/svxlink.d/
+Sip part has been moved to this new file, normally found in /etc/svxlink/svxlink.d
 ----
 SIP_REGISTRAR=fritz.box
 or
@@ -41,7 +41,7 @@ sudo make install
 ```
 
 == Installation of SvxLink with SipLogic extension ==
----
+```
 git clone https://github.com/dl1hrc/svxlink.git
 cd svxlink/src/
 mkdir build
@@ -49,7 +49,7 @@ cd build
 cmake -DUSE_QT=OFF -DCMAKE_INSTALL_PREFIX=/usr -DSYSCONF_INSTALL_DIR=/etc -DLOCAL_STATE_DIR=/var -DMAKE_BUILD_TYPE=Release -DWITH_CONTRIB_SIP_LOGIC=ON ..
 make
 make install
-
+```
 == Documentation ==
 - manpage svxlink.conf.5
 - German pdf is available here: https://github.com/dl1hrc/documentation
