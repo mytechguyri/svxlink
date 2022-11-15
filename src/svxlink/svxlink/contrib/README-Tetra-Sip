@@ -31,6 +31,9 @@ wget https://github.com/pjsip/pjproject/archive/refs/tags/2.12.1.tar.gz
 tar -zxvf 2.12.1.tar.gz
 cd pjproject-2.12.1
 ./configure --disable-libwebrtc --disable-video
+# HINT: on some systems it's needed to compile with th -fPIC option, if not you get erros 
+# like "SipLogic.so: unexpected reloc type 0x03"
+./configure --disable-libwebrtc --disable-video CPPFLAGS=-fPIC CXXFLAGS=-fPIC CFLAGS=-fPIC
 make dep
 make
 sudo make install
