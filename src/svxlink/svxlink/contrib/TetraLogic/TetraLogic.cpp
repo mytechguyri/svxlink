@@ -131,7 +131,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "10112022"
+#define TETRA_LOGIC_VERSION "07122022"
 
 /****************************************************************************
  *
@@ -1944,7 +1944,7 @@ void TetraLogic::sendInfoSds(std::string tsi, short reason)
         } 
         else if (sds_when_proximity && distancediff <= proximity_warning)
         {
-          ss << "Dist:" << distancediff << "km, Bear:" << bearing << "°";
+          ss << "Dist:" << distancediff << "km, Bear:" << bearing << 0xb0;
           sstcl << "proximity_info " << t_iu->first << " " << distancediff
                 << " " << bearing;
         }
