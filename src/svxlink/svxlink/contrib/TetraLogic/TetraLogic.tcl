@@ -11,6 +11,14 @@
 #
 namespace eval TetraLogic {
 
+
+#
+# defines the eMail address of the sender ("From:")
+# Note: ssmtp is needed for functionality
+#
+variable from "test@test.com";
+
+
 #
 # Checking to see if this is the correct logic core
 #
@@ -504,6 +512,33 @@ proc tetra_mode {aimode} {
 #
 proc remote_received_tg_updated {logic tg} {
   Logic::remote_received_tg_updated "$logic" "$tg"
+}
+
+
+#
+# Executed when a new RSSI value has been measured
+#
+proc rssi {rssi} {
+  puts "current RSSI: $rssi dBm";
+}
+
+
+#
+# Executed when the RSSI value exceeds a defined limit
+#
+proc rssi_limit {rssi description mail} {
+  variable from;
+  set cmd "|/usr/sbin/ssmtp $mail";
+  set to "To:$mail";
+  set subject "Subject:WARNING - low RSSI $rssi";
+  set message "The RSSI value has fallen below $rssi dBm ($description).";
+
+  set m [open $cmd w];
+    puts $m $from;
+    puts $m $to;
+    puts $m $subject;
+    puts $m $message;
+  close $m;
 }
 
 

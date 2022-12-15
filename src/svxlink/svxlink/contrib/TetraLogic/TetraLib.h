@@ -152,7 +152,7 @@ std::string AiMode[] = {
    "2 - V+D with dual watch of DMO",
    "3 - DMO with dual watch of V+D",
    "4 - V+D and DMO (used in conjunction CTSP command)",
-   "5 - NN",
+   "5 - Gateway",
    "6 - DMO Repeater mode"
 };
 
@@ -885,6 +885,16 @@ signalling activity could be e.g. Call or SDS processing.",
 return error[errorcode];
 
 } /* getPeiError */
+
+
+std::string getRssiDescription(int rssi)
+{
+  if (rssi < -93) return "Marginal";
+  if (rssi < -83) return "OK";
+  if (rssi < -73) return "good";
+  if (rssi > -74) return "Excellent";
+  return "unknown";
+} /* getRssiDesription */
 
 
 //} /* namespace */
