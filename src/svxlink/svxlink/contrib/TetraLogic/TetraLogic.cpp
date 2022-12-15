@@ -116,6 +116,7 @@ using namespace SvxLink;
 #define OTAK 31
 #define WAP_MESSAGE 32
 #define LOCATION_SYSTEM_TSDU 33
+#define RSSI 34
 
 #define DMO_OFF 7
 #define DMO_ON 8
@@ -131,7 +132,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "07122022"
+#define TETRA_LOGIC_VERSION "15122022"
 
 /****************************************************************************
  *
@@ -206,13 +207,16 @@ TetraLogic::TetraLogic(void)
   proximity_warning(3.1), time_between_sds(3600), own_lat(0.0),
   own_lon(0.0), endCmd(""), new_sds(false), inTransmission(false),
   cmgs_received(true), share_userinfo(true), current_cci(0), dmnc(0),
-  dmcc(0), infosds(""), is_tx(false), last_sdsid(0), pei_pty_path(""), pei_pty(0)
+  dmcc(0), infosds(""), is_tx(false), last_sdsid(0), pei_pty_path(""), pei_pty(0),
+  ai(-1), check_qos(0), qos_sds_to("0815"), qos_limit(-90),
+  qosTimer(300000, Timer::TYPE_ONESHOT, false)
 {
   peiComTimer.expired.connect(mem_fun(*this, &TetraLogic::onComTimeout));
   peiActivityTimer.expired.connect(mem_fun(*this,
                             &TetraLogic::onPeiActivityTimeout));
   peiBreakCommandTimer.expired.connect(mem_fun(*this,
                             &TetraLogic::onPeiBreakCommandTimeout));
+  qosTimer.expired.connect(mem_fun(*this, &TetraLogic::onQosTimeout));
 } /* TetraLogic::TetraLogic */
 
 
@@ -689,6 +693,18 @@ bool TetraLogic::initialize(Async::Config& cfgobj, const std::string& logic_name
         mem_fun(*this, &TetraLogic::peiPtyReceived));
   }
 
+  if (cfg().getValue(name(),"CHECK_QOS", check_qos))
+  {
+    cfg().getValue(name(), "QOS_EMAIL_TO", qos_email_to);
+    cfg().getValue(name(), "QOS_SDS_TO", qos_sds_to);
+    cfg().getValue(name(), "QOS_LIMIT", qos_limit);
+    if (check_qos < 10 || check_qos > 6000) check_qos = 10;
+    qosTimer.setTimeout(check_qos * 1000);
+    qosTimer.reset();
+    qosTimer.setEnable(true);
+    log(LOGDEBUG, "QOS enabled");
+  }
+
   // hadle the Pei serial port
   pei = new Serial(port);
   if (!pei->open())
@@ -1030,7 +1046,8 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
       break;
 
     case OP_MODE:
-      getAiMode(m_message);
+      ai = getAiMode(m_message);
+      getRssi();
       break;
 
     case CTGS:
@@ -1043,6 +1060,10 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
 
     case CLVL:
       handleClvl(m_message);
+      break;
+
+    case RSSI:
+      handleRssi(m_message);
       break;
 
     case INVALID:
@@ -2003,6 +2024,7 @@ int TetraLogic::handleMessage(std::string mesg)
   mre["^\\+CTGS:"]                                = CTGS;
   mre["^\\+CTDGR:"]                               = CTDGR;
   mre["^\\+CLVL:"]                                = CLVL;
+  mre["^\\+CSQ:"]                                 = RSSI;
   mre["^01"]                                      = OTAK;
   mre["^02"]                                      = SIMPLE_TEXT_SDS;
   mre["^03"]                                      = SIMPLE_LIP_SDS;
@@ -2029,7 +2051,7 @@ int TetraLogic::handleMessage(std::string mesg)
 } /* TetraLogic::handleMessage */
 
 
-void TetraLogic::getAiMode(std::string aimode)
+int TetraLogic::getAiMode(std::string aimode)
 {
   if (aimode.length() > 6)
   {
@@ -2038,7 +2060,9 @@ void TetraLogic::getAiMode(std::string aimode)
     stringstream ss;
     ss << "tetra_mode " << t;
     processEvent(ss.str());
+    return t;
   }
+  return -1;
 } /* TetraLogic::getAiMode */
 
 
@@ -2328,6 +2352,77 @@ void TetraLogic::peiPtyReceived(const void *buf, size_t count)
 
   sendPei(in);
 } /* TetraLogic::peiPtyReceived */
+
+
+void TetraLogic::onQosTimeout(Async::Timer *timer)
+{
+  getRssi();
+} /* TetraLogic::onQosTimeout */
+
+
+void TetraLogic::getRssi(void)
+{
+  if (ai == TMO || ai == GATEWAY)
+  {
+    log(LOGDEBUG, "checking RSSI: AT+CSQ?");
+    sendPei("AT+CSQ?");
+    qosTimer.reset();
+    qosTimer.setEnable(true);
+  }
+} /* TetraLogic::getRssi */
+
+
+void TetraLogic::handleRssi(std::string m_message)
+{
+  size_t f = m_message.find("+CSQ: ");
+  if (f != string::npos)
+  {
+    m_message.erase(0,6);
+    int rssi = -113 + 2 * getNextVal(m_message);
+
+    stringstream ss;
+    ss << "rssi " << rssi;
+    processEvent(ss.str());
+
+    std::string m = "New Rssi value measured: ";
+    m += to_string(rssi);
+    m += " dBm (";
+    m += getRssiDescription(rssi);
+    m +=").";
+    log(LOGDEBUG, m);
+
+    if (rssi > qos_limit) return;
+
+    if (qos_email_to.length() > 5)
+    {
+      string s = "rssi_limit ";
+      s += to_string(rssi);
+      s += " ";
+      s += getRssiDescription(rssi);
+      s += " ";
+      s += qos_email_to;
+      processEvent(s);
+    }
+
+    if (qos_sds_to.length() > 1)
+    {
+      string sds;
+      string s = "New Rssi limit: ";
+      s += to_string(rssi);
+      s += " dBm (";
+      s += getRssiDescription(rssi);
+      s += ").";
+      Sds t_sds;
+      t_sds.direction = OUTGOING;
+      t_sds.tsi = qos_sds_to;
+      t_sds.message = s;
+      t_sds.type = TEXT;
+      t_sds.remark = "Rssi-Sds";
+      queueSds(t_sds);
+      log(LOGDEBUG, "Sending SDS: " + s);
+    }
+  }
+} /* TetraLogic::handleRssi */
 
 /*
  * This file has not been truncated

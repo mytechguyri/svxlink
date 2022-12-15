@@ -296,6 +296,12 @@ class TetraLogic : public Logic
     {
       SDS_SEND_OK = 4, SDS_SEND_FAILED = 5
     } SdsSentState;
+    
+    typedef enum
+    {
+      TMO=0, DMO_MS=1, GATEWAY=5
+        
+    } aiMode;
 
     bool sds_when_dmo_on;
     bool sds_when_dmo_off;
@@ -339,6 +345,12 @@ class TetraLogic : public Logic
     int last_sdsid;
     std::string pei_pty_path;
     Async::Pty  *pei_pty;
+    int ai;
+    int check_qos;
+    std::string qos_sds_to;
+    std::string qos_email_to;
+    int qos_limit;
+    Async::Timer qosTimer;
 
     void initPei(void);
     void onCharactersReceived(char *buf, int count);
@@ -373,7 +385,7 @@ class TetraLogic : public Logic
     void firstContact(Sds tsds);
     bool checkSds(void);
     void clearOldSds(void);
-    void getAiMode(std::string opmode);
+    int getAiMode(std::string opmode);
     bool rmatch(std::string tok, std::string pattern);
     void sendUserInfo(void);
     void sendWelcomeSds(std::string tsi, short r4s);
@@ -387,6 +399,9 @@ class TetraLogic : public Logic
     std::string joinList(std::list<std::string> members);
     void log(uint8_t type, std::string logmessage);
     void peiPtyReceived(const void *buf, size_t count);
+    void onQosTimeout(Async::Timer *timer);
+    void getRssi(void);
+    void handleRssi(std::string m_message);
 };  /* class TetraLogic */
 
 
