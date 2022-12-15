@@ -2084,20 +2084,26 @@ bool TetraLogic::rmatch(std::string tok, std::string pattern)
 // receive interlogic messages here
 void TetraLogic::onPublishStateEvent(const string &event_name, const string &msg)
 {
-  log(LOGTRACE, "TetraLogic::onPublishStateEvent - event_name: " 
+  log(LOGTRACE, "TetraLogic::onPublishStateEvent - event_name: "
         + event_name + ", message: " +msg);
 
   // if it is not allowed to handle information about users then all userinfo
   // traffic will be ignored
   if (!share_userinfo) return;
 
-  Json::Value user_arr;
-  Json::Reader reader;
-  bool b = reader.parse(msg, user_arr);
-  if (!b)
+  Json::CharReaderBuilder builder {};
+  auto reader = std::unique_ptr<Json::CharReader>(builder.newCharReader());
+
+  Json::Value user_arr {};
+  std::string errors {};
+  const auto is_parsed = reader->parse(msg.c_str(),
+                                       msg.c_str() + msg.length(),
+                                       &user_arr,
+                                       &errors);
+  if (!is_parsed)
   {
     log(LOGERROR, "*** Error: parsing StateEvent message ("
-           + reader.getFormattedErrorMessages() + ")" );
+           + errors + ")" );
     return;
   }
 
