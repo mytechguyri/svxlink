@@ -678,6 +678,10 @@ void ReflectorClient::handleStateEvent(std::istream& is)
   {
     m_reflector->updateQsostate(eventmessage);
   }
+  else if (msg.name() == "Rssi:info")
+  {
+    m_reflector->updateRssistate(eventmessage);
+  }
 } /* ReflectorClient::handleStateEvent */
 
 

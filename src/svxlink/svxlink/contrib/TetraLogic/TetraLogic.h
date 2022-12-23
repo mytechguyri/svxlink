@@ -243,6 +243,7 @@ class TetraLogic : public Logic
       char aprs_tab;
       time_t last_activity = 0;
       time_t sent_last_sds = 0;
+      int rssi = 100;
     };
     std::map<std::string, User> userdata;
 
@@ -299,9 +300,15 @@ class TetraLogic : public Logic
     
     typedef enum
     {
-      TMO=0, DMO_MS=1, GATEWAY=5
-        
+      TMO=0, DMO_MS=1, VD_DUAL_WATCH_DMO=2, DMO_DUAL_WATCH_DV=3, GATEWAY=5,
+      DMO_REPEATER=6
     } aiMode;
+
+    typedef enum
+    {
+      NOT_REGISTERED = 0, REGISTERED = 1, NO_NETWORK = 2, REJECTED = 3,
+      UNKNOWN = 4, VISITED_NETWORK = 5
+    } regState;
 
     bool sds_when_dmo_on;
     bool sds_when_dmo_off;
@@ -340,6 +347,7 @@ class TetraLogic : public Logic
     int current_cci;
     int dmnc;
     int dmcc;
+    int dissi;
     std::string infosds;
     bool is_tx;
     int last_sdsid;
@@ -351,6 +359,13 @@ class TetraLogic : public Logic
     std::string qos_email_to;
     int qos_limit;
     Async::Timer qosTimer;
+    std::vector<int> rssi_list;
+    int min_rssi;
+    int max_rssi;
+    int reg_cell;
+    int reg_la;
+    int reg_mni;
+    int reg_state;
 
     void initPei(void);
     void onCharactersReceived(char *buf, int count);
@@ -402,6 +417,8 @@ class TetraLogic : public Logic
     void onQosTimeout(Async::Timer *timer);
     void getRssi(void);
     void handleRssi(std::string m_message);
+    void handleCreg(std::string m_message);
+    void checkReg(void);
 };  /* class TetraLogic */
 
 

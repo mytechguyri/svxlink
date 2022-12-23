@@ -184,21 +184,27 @@ class Reflector : public sigc::trackable
 
     /**
      * @brief  Updates the user information
-     * @param  user array with all data of the useres
+     * @param  user array with all data of the users
      */
     void updateUserdata(Json::Value eventmessage);
 
     /**
      * @brief  Update Sds information
-     * @param  ToDo
+     * @param  event message with sds data
      */
     void updateSdsdata(Json::Value eventmessage);
 
     /**
      * @brief  Update Qso information
-     * @param  ToDo
+     * @param  event message with Qso information
      */
     void updateQsostate(Json::Value eventmessage);
+
+    /**
+     * @brief  Update Rssi information
+     * @param  event message with rssi info
+     */
+    void updateRssistate(Json::Value eventmessage);
 
   private:
     typedef std::map<uint32_t, ReflectorClient*> ReflectorClientMap;
