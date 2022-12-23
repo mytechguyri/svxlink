@@ -87,7 +87,7 @@ using namespace SvxLink;
 #define ERROR 1
 #define CALL_BEGIN 3
 #define GROUPCALL_END 4
-
+#define REGISTRATION 5
 #define SDS 6
 #define TEXT_SDS 7
 #define CNUMF 8
@@ -132,7 +132,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "15122022"
+#define TETRA_LOGIC_VERSION "22122022"
 
 /****************************************************************************
  *
@@ -207,9 +207,10 @@ TetraLogic::TetraLogic(void)
   proximity_warning(3.1), time_between_sds(3600), own_lat(0.0),
   own_lon(0.0), endCmd(""), new_sds(false), inTransmission(false),
   cmgs_received(true), share_userinfo(true), current_cci(0), dmnc(0),
-  dmcc(0), infosds(""), is_tx(false), last_sdsid(0), pei_pty_path(""), pei_pty(0),
-  ai(-1), check_qos(0), qos_sds_to("0815"), qos_limit(-90),
-  qosTimer(300000, Timer::TYPE_ONESHOT, false)
+  dmcc(0), dissi(0), infosds(""), is_tx(false), last_sdsid(0), pei_pty_path(""),
+  pei_pty(0), ai(-1), check_qos(0), qos_sds_to("0815"), qos_limit(-90),
+  qosTimer(300000, Timer::TYPE_ONESHOT, false), min_rssi(100), max_rssi(100),
+  reg_cell(0), reg_la(0), reg_mni(0)
 {
   peiComTimer.expired.connect(mem_fun(*this, &TetraLogic::onComTimeout));
   peiActivityTimer.expired.connect(mem_fun(*this,
@@ -1066,6 +1067,10 @@ void TetraLogic::handlePeiAnswer(std::string m_message)
       handleRssi(m_message);
       break;
 
+    case REGISTRATION:
+      handleCreg(m_message);
+      break;
+
     case INVALID:
       log(LOGWARN, "+++ Pei answer not known, ignoring ;)");
 
@@ -1879,6 +1884,7 @@ void TetraLogic::handleCnumf(std::string m_message)
     }
     dmcc = t_mcc;
     dmnc = t_mnc;
+    dissi = t_issi;
 
     if (atoi(issi.c_str()) != t_issi)
     {
@@ -2025,6 +2031,7 @@ int TetraLogic::handleMessage(std::string mesg)
   mre["^\\+CTDGR:"]                               = CTDGR;
   mre["^\\+CLVL:"]                                = CLVL;
   mre["^\\+CSQ:"]                                 = RSSI;
+  mre["^\\+CREG:"]                                = REGISTRATION;
   mre["^01"]                                      = OTAK;
   mre["^02"]                                      = SIMPLE_TEXT_SDS;
   mre["^03"]                                      = SIMPLE_LIP_SDS;
@@ -2385,6 +2392,10 @@ void TetraLogic::handleRssi(std::string m_message)
   {
     m_message.erase(0,6);
     int rssi = -113 + 2 * getNextVal(m_message);
+    rssi_list.push_back(rssi);
+    if (rssi_list.size() > 20) rssi_list.pop_back();
+    if (rssi < min_rssi) min_rssi = rssi; // store min rssi value
+    if (rssi > max_rssi) max_rssi = rssi; // store max rssi value
 
     stringstream ss;
     ss << "rssi " << rssi;
@@ -2397,8 +2408,24 @@ void TetraLogic::handleRssi(std::string m_message)
     m +=").";
     log(LOGDEBUG, m);
 
+    // send the rssi value to the refelctor network for further handling
+    Json::Value event(Json::arrayValue);
+    Json::Value t_rssi(Json::objectValue);
+    t_rssi["issi"] = dissi;
+    t_rssi["mni"] = reg_mni;
+    t_rssi["la"] = reg_la;
+    t_rssi["rssi"] = rssi;
+    t_rssi["max_rssi"] = *max_element(rssi_list.begin(), rssi_list.end());
+    t_rssi["min_rssi"] = *min_element(rssi_list.begin(), rssi_list.end());
+    event.append(t_rssi);
+    publishInfo("Rssi:info", event);
+
+    checkReg();
+
+    // no action if the value is above the defined limit 
     if (rssi > qos_limit) return;
 
+    // send email (via the tcl framework) to the administrator
     if (qos_email_to.length() > 5)
     {
       string s = "rssi_limit ";
@@ -2410,6 +2437,7 @@ void TetraLogic::handleRssi(std::string m_message)
       processEvent(s);
     }
 
+    // send sds to the administrator
     if (qos_sds_to.length() > 1)
     {
       string sds;
@@ -2430,7 +2458,28 @@ void TetraLogic::handleRssi(std::string m_message)
   }
 } /* TetraLogic::handleRssi */
 
+
+void TetraLogic::checkReg(void)
+{
+  log(LOGDEBUG, "Checking registration state (AT+CREG?)");
+  sendPei("AT+CREG?");
+} /* TetraLogic::checkReg */
+
+
+void TetraLogic::handleCreg(std::string m_message)
+{
+  // +CREG: 1,1,90109999
+  if (m_message.length()>5) m_message.erase(0,6);
+  reg_state = getNextVal(m_message);
+  reg_la = getNextVal(m_message); // 14-bit Location Area code 
+  reg_mni = getNextVal(m_message); // 24-bit Mobile Network Identity
+  stringstream ss;
+  ss << "Registration LA=" << reg_la << ", MNI=" <<
+     reg_mni << ", state=" << RegStat[reg_state];
+
+  log(LOGDEBUG, ss.str());
+} /* TetraLogic::handleCreg */
+
 /*
  * This file has not been truncated
  */
-
