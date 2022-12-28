@@ -132,7 +132,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "22122022"
+#define TETRA_LOGIC_VERSION "27122022"
 
 /****************************************************************************
  *
@@ -929,6 +929,7 @@ void TetraLogic::sendUserInfo(void)
     t_userinfo["comment"] = iu->second.comment;
     t_userinfo["location"] = iu->second.location;
     t_userinfo["last_activity"] = 0;
+    t_userinfo["message"] = "DvUsers:info";
     event.append(t_userinfo);
   }
   publishInfo("DvUsers:info", event);
@@ -1230,6 +1231,7 @@ void TetraLogic::handleCallBegin(std::string message)
   }
 
   qsoinfo["qso_members"] = joinList(Qso.members);
+  qsoinfo["message"] = "QsoInfo:state";
   publishInfo("QsoInfo:state", qsoinfo);
   // end of publish messages
 
@@ -1432,6 +1434,7 @@ void TetraLogic::handleSdsMsg(std::string sds)
   sdsinfo["to"] = userdata[pSDS.totsi].call;
   sdsinfo["receivertsi"] = pSDS.totsi;
   sdsinfo["gateway"] = callsign();
+  sdsinfo["message"] = "Sds:info";
   event.append(sdsinfo);
   publishInfo("Sds:info", event);
 
@@ -2149,6 +2152,7 @@ void TetraLogic::publishInfo(std::string type, Json::Value event)
 
    // sending own tetra user information to the reflectorlogic network
   Json::StreamWriterBuilder builder;
+  log(LOGDEBUG, jsonToString(event));
   builder["commentStyle"] = "None";
   builder["indentation"] = ""; //The JSON document is written on a single line
   Json::StreamWriter* writer = builder.newStreamWriter();
@@ -2393,7 +2397,7 @@ void TetraLogic::handleRssi(std::string m_message)
     m_message.erase(0,6);
     int rssi = -113 + 2 * getNextVal(m_message);
     rssi_list.push_back(rssi);
-    if (rssi_list.size() > 20) rssi_list.pop_back();
+    if (rssi_list.size() > 20) rssi_list.erase(rssi_list.begin());
     if (rssi < min_rssi) min_rssi = rssi; // store min rssi value
     if (rssi > max_rssi) max_rssi = rssi; // store max rssi value
 
@@ -2409,17 +2413,17 @@ void TetraLogic::handleRssi(std::string m_message)
     log(LOGDEBUG, m);
 
     // send the rssi value to the refelctor network for further handling
-    Json::Value event(Json::arrayValue);
     Json::Value t_rssi(Json::objectValue);
     t_rssi["issi"] = dissi;
     t_rssi["mni"] = reg_mni;
+    t_rssi["call"] = callsign();
     t_rssi["la"] = reg_la;
     t_rssi["rssi"] = rssi;
     t_rssi["max_rssi"] = *max_element(rssi_list.begin(), rssi_list.end());
     t_rssi["min_rssi"] = *min_element(rssi_list.begin(), rssi_list.end());
-    event.append(t_rssi);
-    publishInfo("Rssi:info", event);
-
+    t_rssi["message"] = "Rssi:info";
+    publishInfo("Rssi:info", t_rssi);
+    //log(LOGDEBUG, jsonToString(t_rssi));
     checkReg();
 
     // no action if the value is above the defined limit 
@@ -2479,6 +2483,15 @@ void TetraLogic::handleCreg(std::string m_message)
 
   log(LOGDEBUG, ss.str());
 } /* TetraLogic::handleCreg */
+
+
+std::string TetraLogic::jsonToString(Json::Value eventmessage)
+{
+  Json::StreamWriterBuilder builder;
+  builder["indentation"] = "";
+  std::string message = Json::writeString(builder, eventmessage);
+  return message;
+} /* Reflector::jsonToString */
 
 /*
  * This file has not been truncated

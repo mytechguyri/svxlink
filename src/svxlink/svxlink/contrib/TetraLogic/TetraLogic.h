@@ -419,6 +419,7 @@ class TetraLogic : public Logic
     void handleRssi(std::string m_message);
     void handleCreg(std::string m_message);
     void checkReg(void);
+    std::string jsonToString(Json::Value eventmessage);
 };  /* class TetraLogic */
 
 
