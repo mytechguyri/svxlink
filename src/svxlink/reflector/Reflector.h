@@ -184,15 +184,27 @@ class Reflector : public sigc::trackable
 
     /**
      * @brief  Updates the user information
-     * @param  user array with all data of the useres
+     * @param  user array with all data of the users
      */
     void updateUserdata(Json::Value eventmessage);
-    
+
+    /**
+     * @brief  Update Sds information
+     * @param  event message with sds data
+     */
+    void updateSdsdata(Json::Value eventmessage);
+
     /**
      * @brief  Update Qso information
-     * @param  ToDo
+     * @param  event message with Qso information
      */
     void updateQsostate(Json::Value eventmessage);
+
+    /**
+     * @brief  Update Rssi information
+     * @param  event message with rssi info
+     */
+    void updateRssistate(Json::Value eventmessage);
 
   private:
     typedef std::map<uint32_t, ReflectorClient*> ReflectorClientMap;
@@ -213,12 +225,12 @@ class Reflector : public sigc::trackable
     std::string                                     cfg_filename;
     bool                                            debug;
 
-    
-    // contain user data
+      // contain user data
     struct User {
       std::string id;
       std::string call;
       std::string mode;
+      std::string idtype;
       std::string name;
       std::string location;
       std::string comment;
@@ -232,7 +244,7 @@ class Reflector : public sigc::trackable
       time_t sent_last_sds;
     };
     std::map<std::string, User> userdata;
-    
+
     Reflector(const Reflector&);
     Reflector& operator=(const Reflector&);
     void clientConnected(Async::FramedTcpConnection *con);
@@ -252,7 +264,7 @@ class Reflector : public sigc::trackable
     bool getUserData(void);
     void writeUserData(std::map<std::string, User> userdata);
     std::string jsonToString(Json::Value eventmessage);
-    
+
 };  /* class Reflector */
 
 

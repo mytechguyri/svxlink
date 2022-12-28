@@ -180,6 +180,7 @@ ReflectorClient::ReflectorClient(Reflector *ref, Async::FramedTcpConnection *con
     }
     m_supported_codecs.push_back(codec);
   }
+
 } /* ReflectorClient::ReflectorClient */
 
 
@@ -649,32 +650,37 @@ void ReflectorClient::handleStateEvent(std::istream& is)
     sendError("Illegal MsgStateEvent protocol message received");
     return;
   }
-  //cout << "### ReflectorClient::handleStateEvent:"
-   //    << " src=" << msg.src()
-   //    << " name=" << msg.name()
-   //    << " msg=" << msg.msg()
- //      << std::endl;
-  
+  /*cout << "### ReflectorClient::handleStateEvent:"
+       << " src=" << m_callsign
+       << " name=" << msg.name()
+       << " msg=" << msg.msg()
+       << std::endl;
+  */
   Json::Value eventmessage;
-  Json::CharReaderBuilder rbuilder;
-  std::unique_ptr<Json::CharReader> const reader(rbuilder.newCharReader());
-  std::string jsonReaderError;
-
-  if (!reader->parse(msg.msg().c_str(), msg.msg().c_str() + msg.msg().size(),
-              &eventmessage, &jsonReaderError))
+  Json::Reader reader;
+  bool b = reader.parse(msg.msg(), eventmessage);
+  if (!b)
   {
     cout << "*** Error: parsing StateEvent message (" 
-         << jsonReaderError << ")" << endl;
+         << reader.getFormattedErrorMessages() << ")" << endl;
     return;
   }
 
-  if (msg.name() == "DvUsers:info")
+  if (msg.name() == "TetraUsers:info")
   {
     m_reflector->updateUserdata(eventmessage);
+  }
+  else if (msg.name() == "Sds:info")
+  {
+    m_reflector->updateSdsdata(eventmessage);
   }
   else if (msg.name() == "QsoInfo:state")
   {
     m_reflector->updateQsostate(eventmessage);
+  }
+  else if (msg.name() == "Rssi:info")
+  {
+    m_reflector->updateRssistate(eventmessage);
   }
 } /* ReflectorClient::handleStateEvent */
 

@@ -30,7 +30,7 @@ or "-devel".
 * *libspeex*: The Speex audio codec (Optional)
 * *librtlsdr*: Support for RTL2832U DVB-T/SDR USB dongles (Optional)
 * *libqt*: Version 4. Framework for graphical applications (Optional)
-* *libgpiod*: For gpio support at RaspberryPi’s (Optional)
+* *libgpiod*: For gpio support at RaspberryPi's (Optional)
 
 There also are some runtime dependencies which normally is needed to run a
 SvxLink system.
@@ -48,14 +48,11 @@ A common command that exist on many distributions is 'useradd'. The 'daemon'
 group usually exist but if not, look for the 'groupadd' command.
 
 
-== Build and install SvxLink with Usrp extension ==
+== Build and install  ==
 SvxLink use the CMake build system. The basic pattern for building using CMake
 looks like this:
 
-  git clone https://github.com/dl1hrc/svxlink.git
-  cd svxlink
-  git checkout svxlink-usrp
-  cd src
+  cd path/to/svxlink/src
   mkdir build
   cd build
   cmake ..

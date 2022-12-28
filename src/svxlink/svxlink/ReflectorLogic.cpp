@@ -726,12 +726,13 @@ void ReflectorLogic::remoteReceivedPublishStateEvent(
     is >> user_info;
     user_info["TG"] = m_selected_tg;
     string ud =jsonToString(user_info);
-    
+
      // cout << "sende: " << event_name << "," << ud << endl;
     MsgStateEvent msg(logic->name(), event_name, ud);
     sendMsg(msg);
   }
-  else if (event_name == "Sds:info" || event_name == "DvUsers:info")
+  else if (event_name == "Sds:info" || event_name == "DvUsers:info" ||
+           event_name == "Rssi:info")
   {
    // cout << "sende: " << event_name << "," << data << endl;
     MsgStateEvent msg(logic->name(), event_name, data);
