@@ -132,7 +132,7 @@ using namespace SvxLink;
 
 #define MAX_TRIES 5
 
-#define TETRA_LOGIC_VERSION "27122022"
+#define TETRA_LOGIC_VERSION "10012023"
 
 /****************************************************************************
  *
@@ -1231,6 +1231,7 @@ void TetraLogic::handleCallBegin(std::string message)
   }
 
   qsoinfo["qso_members"] = joinList(Qso.members);
+  qsoinfo["active_issi"] = o_tsi;
   qsoinfo["message"] = "QsoInfo:state";
   publishInfo("QsoInfo:state", qsoinfo);
   // end of publish messages
@@ -1737,6 +1738,7 @@ void TetraLogic::handleCallReleased(std::string message)
     uint32_t ti = time(NULL);
     qsoinfo["last_activity"] = ti;
     qsoinfo["qso_active"] = false;
+    qsoinfo["last_talker"] = callinfo[cci].o_issi;
     qsoinfo["qso_members"] = joinList(Qso.members);
     qsoinfo["gateway"] = callsign();
     qsoinfo["cci"] = cci;
